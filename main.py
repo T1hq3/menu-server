@@ -109,7 +109,7 @@ def generate_pdf():
 
         for _, row in df.iterrows():
 
-            text = str(row.get("Dish name", ""))
+            text = str(row.get("Dish name", "")).encode("utf-8").decode("utf-8")
 
             c.drawString(40, y, text)
 
