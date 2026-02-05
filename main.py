@@ -94,104 +94,78 @@ def download_excel():
 def generate_pdf():
 
     if not os.path.exists(EXCEL_FILE):
+        print("Excel missing")
         return
 
     print("Generating CLEAN MENU...")
 
-    df = pd.read_excel(EXCEL_FILE).fillna("")
+    df = pd.read_excel(EXCEL_FILE)
 
     c = canvas.Canvas(PDF_FILE, pagesize=A4)
 
     width, height = A4
-    margin = 30
 
-    col_width = (width - margin * 3) / 2
-    x_positions = [margin, margin * 2 + col_width]
+    margin = 40
+    column_width = (width - margin * 3) / 2
 
-    sections = df.groupby("Section")
+    x_positions = [margin, margin * 2 + column_width]
 
-    for section_name, section_data in sections:
+    y = height - 80
+    column = 0
 
-        # ===== КОЖНА СЕКЦІЯ З НОВОЇ СТОРІНКИ =====
-        c.showPage()
+    # Заголовок сторінки
+    c.setFont("DejaVu", 26)
+    c.drawString(margin, height - 40, "Алкогольний бар")
 
-        c.setFont("DejaVu", 22)
-        c.drawCentredString(width / 2, height - 40, str(section_name))
+    grouped = df.groupby("Category")
 
-        y_positions = [height - 90, height - 90]
-        column = 0
+    for category, items in grouped:
 
-        categories = section_data.groupby("Category")
+        x = x_positions[column]
 
-        for category_name, items in categories:
+        # ===== РАМКА КАТЕГОРІЇ =====
+        block_height = 20 + len(items) * 18 + 20
 
-            # якщо колонка переповнилась
-            if y_positions[column] < 120:
+        if y - block_height < 50:
+            column += 1
 
-                column += 1
+            if column > 1:
+                c.showPage()
+                c.setFont("DejaVu", 26)
+                c.drawString(margin, height - 40, "Алкогольний бар")
 
-                if column > 1:
-                    c.showPage()
-                    c.setFont("DejaVu", 22)
-                    c.drawCentredString(width / 2, height - 40, str(section_name))
-                    y_positions = [height - 90, height - 90]
-                    column = 0
+                column = 0
 
+            y = height - 80
             x = x_positions[column]
-            y = y_positions[column]
 
-            # ===== Заголовок категорії =====
-            c.setFont("DejaVu", 14)
-            c.drawString(x, y, str(category_name))
-            y -= 25
+        # Малюємо рамку
+        c.roundRect(x, y - block_height, column_width, block_height, 12)
 
-            for _, row in items.iterrows():
+        # Заголовок категорії
+        c.setFont("DejaVu", 18)
+        c.drawString(x + 10, y - 25, str(category))
 
-                name = str(row["Dish name"])
-                desc = str(row["Description"])
-                price = str(row["Price"])
-                weight = str(row["Weight, g"])
+        item_y = y - 45
 
-                # Назва
-                c.setFont("DejaVu", 11)
-                c.drawString(x, y, name)
-                c.drawRightString(x + col_width, y, price)
+        for _, row in items.iterrows():
 
-                y -= 14
+            name = str(row.get("Dish name", ""))
+            price = str(row.get("Price", ""))
 
-                # Опис
-                c.setFont("DejaVu", 8)
-                desc_lines = simpleSplit(desc, "DejaVu", 8, col_width)
+            c.setFont("DejaVu", 13)
 
-                for line in desc_lines:
-                    c.drawString(x, y, line)
-                    y -= 10
+            c.drawString(x + 10, item_y, name)
+            c.drawRightString(x + column_width - 10, item_y, price)
 
-                # Вага
-                c.drawRightString(x + col_width, y + 10, f"{weight} г")
+            item_y -= 18
 
-                y -= 12
-
-                # Якщо блок переповнив колонку
-                if y < 100:
-
-                    column += 1
-
-                    if column > 1:
-                        c.showPage()
-                        c.setFont("DejaVu", 22)
-                        c.drawCentredString(width / 2, height - 40, str(section_name))
-                        y_positions = [height - 90, height - 90]
-                        column = 0
-
-                    y = y_positions[column]
-
-            y -= 20
-            y_positions[column] = y
+        y -= block_height + 15
 
     c.save()
 
-    print("✔ MENU FIXED COMPLETELY")
+    print("✔ CLEAN MENU READY")
+
 
 
 
