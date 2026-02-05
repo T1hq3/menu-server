@@ -5,6 +5,8 @@ import time
 import threading
 import os
 
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import pandas as pd
@@ -24,6 +26,9 @@ SAVE_PATH = "./exports"
 EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
 PDF_FILE = f"{SAVE_PATH}/menu.pdf"
 
+FONT_PATH = "DejaVuSans.ttf"
+
+pdfmetrics.registerFont(TTFont("DejaVu", FONT_PATH))
 
 # ======================
 # DOWNLOAD EXCEL
@@ -97,6 +102,7 @@ def generate_pdf():
         df = pd.read_excel(EXCEL_FILE)
 
         c = canvas.Canvas(PDF_FILE, pagesize=A4)
+        c.setFont("DejaVu", 12)
 
         width, height = A4
         y = height - 40
