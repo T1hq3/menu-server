@@ -4,7 +4,6 @@ import schedule
 import time
 import threading
 import os
-
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
@@ -88,6 +87,28 @@ def download_excel():
         print("Error:", e)
 
 
+def split_text(text, max_len):
+    if not text:
+        return []
+
+    words = str(text).split()
+    lines = []
+    current = ""
+
+    for word in words:
+        if len(current + " " + word) <= max_len:
+            current += " " + word if current else word
+        else:
+            lines.append(current)
+            current = word
+
+    if current:
+        lines.append(current)
+
+    return lines
+
+
+
 # ======================
 # GENERATE PDF
 # ======================
@@ -104,7 +125,6 @@ def generate_clean_menu_pdf():
     c = canvas.Canvas(PDF_FILE, pagesize=A4)
 
     width, height = A4
-
     column_width = width / 2 - 40
     x_positions = [30, width / 2 + 10]
 
@@ -112,30 +132,24 @@ def generate_clean_menu_pdf():
     column = 0
     current_section = None
 
-
     def new_page():
         nonlocal column, y
         c.showPage()
         column = 0
         y = height - 40
 
-
     def new_column():
         nonlocal column, y
-
         column += 1
         if column > 1:
             new_page()
-
         y = height - 40
-
 
     grouped = df.groupby(["Section", "Category"])
 
-
     for (section, category), items in grouped:
 
-        # ---------- SECTION ----------
+        # ===== SECTION =====
         if current_section != section:
 
             if y < 120:
@@ -144,28 +158,13 @@ def generate_clean_menu_pdf():
             c.setFont("DejaVu", 22)
             c.drawCentredString(width / 2, y, str(section))
             y -= 35
-
             current_section = section
-
 
         x = x_positions[column]
 
-        # ---------- CATEGORY HEADER ----------
-        def draw_category_header():
-
-            c.setFillColorRGB(0.85, 0.85, 0.85)
-            c.rect(x, y - 35, column_width, 35, fill=1, stroke=0)
-
-            c.setFillColorRGB(0, 0, 0)
-            c.setFont("DejaVu", 18)
-            c.drawString(x + 10, y - 25, str(category))
-
-
-        # Малюємо header
-        draw_category_header()
-
-        item_y = y - 50
-
+        # ===== ПІДГОТОВКА ITEMS =====
+        prepared = []
+        block_height = 45
 
         for _, row in items.iterrows():
 
@@ -175,51 +174,86 @@ def generate_clean_menu_pdf():
             item_height = (
                 len(name_lines) * 15 +
                 len(desc_lines) * 12 +
-                15
+                12
             )
 
+            prepared.append((row, name_lines, desc_lines, item_height))
+            block_height += item_height
 
-            # ----- перенос item -----
+        # ===== ПЕРЕНОС CATEGORY =====
+        if y - block_height < 60:
+            new_column()
+            x = x_positions[column]
+
+        # ===== РАМКА CATEGORY =====
+        c.roundRect(
+            x,
+            y - block_height,
+            column_width,
+            block_height,
+            12
+        )
+
+        # ===== HEADER CATEGORY =====
+        c.setFillColorRGB(0.85, 0.85, 0.85)
+        c.rect(x, y - 35, column_width, 35, fill=1, stroke=0)
+
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("DejaVu", 18)
+        c.drawString(x + 10, y - 25, str(category))
+
+        item_y = y - 50
+
+        # ===== ITEMS =====
+        for row, name_lines, desc_lines, item_height in prepared:
+
             if item_y - item_height < 60:
 
                 new_column()
                 x = x_positions[column]
 
-                draw_category_header()
-                item_y = y - 50
+                # повтор header
+                c.roundRect(
+                    x,
+                    y - block_height,
+                    column_width,
+                    block_height,
+                    12
+                )
 
+                c.setFillColorRGB(0.85, 0.85, 0.85)
+                c.rect(x, y - 35, column_width, 35, fill=1, stroke=0)
+
+                c.setFillColorRGB(0, 0, 0)
+                c.setFont("DejaVu", 18)
+                c.drawString(x + 10, y - 25, str(category))
+
+                item_y = y - 50
 
             price = str(row.get("Price", ""))
 
-
-            # ----- NAME -----
+            # NAME
             c.setFont("DejaVu", 13)
-
             for line in name_lines:
                 c.drawString(x + 10, item_y, line)
                 item_y -= 15
 
-
-            # ----- PRICE -----
+            # PRICE
             c.drawRightString(
                 x + column_width - 10,
                 item_y + 15,
                 price
             )
 
-
-            # ----- DESCRIPTION -----
+            # DESCRIPTION
             c.setFont("DejaVu", 9)
-
             for line in desc_lines:
                 c.drawString(x + 10, item_y, line)
                 item_y -= 12
 
             item_y -= 6
 
-
-        y = item_y - 25
-
+        y -= block_height + 20
 
     c.save()
     print("✔ CLEAN MENU GENERATED")
