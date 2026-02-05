@@ -90,22 +90,27 @@ def download_excel():
 # ======================
 # GENERATE PDF
 # ======================
-def clean_text(val):
-    if pd.isna(val):
-        return ""
-    return str(val)
+from reportlab.lib.utils import simpleSplit
+
+
+def draw_multiline(c, text, x, y, max_width, line_height):
+    lines = simpleSplit(text, "DejaVu", 8, max_width)
+
+    for line in lines:
+        c.drawString(x, y, line)
+        y -= line_height
+
+    return y
 
 
 def generate_pdf():
 
     if not os.path.exists(EXCEL_FILE):
-        print("Excel missing")
         return
 
     print("Generating MENU PDF...")
 
-    df = pd.read_excel(EXCEL_FILE)
-    df = df.fillna("")
+    df = pd.read_excel(EXCEL_FILE).fillna("")
 
     c = canvas.Canvas(PDF_FILE, pagesize=A4)
 
@@ -113,16 +118,14 @@ def generate_pdf():
 
     margin = 30
     col_width = (width - margin * 3) / 2
-
     x_positions = [margin, margin * 2 + col_width]
 
-    # ========= ГРУПУЄМО ПО SECTION =========
     sections = df.groupby("Section")
 
     for section_name, section_data in sections:
 
-        c.setFont("DejaVu", 22)
-        c.drawCentredString(width / 2, height - 40, clean_text(section_name))
+        c.setFont("DejaVu", 20)
+        c.drawCentredString(width / 2, height - 40, str(section_name))
 
         y = height - 80
         column = 0
@@ -131,66 +134,71 @@ def generate_pdf():
 
         for category_name, items in categories:
 
-            # перенос колонки / сторінки
-            if y < 150:
+            if y < 120:
                 column += 1
 
                 if column > 1:
                     c.showPage()
-
-                    c.setFont("DejaVu", 22)
-                    c.drawCentredString(width / 2, height - 40, clean_text(section_name))
-
+                    c.setFont("DejaVu", 20)
+                    c.drawCentredString(width / 2, height - 40, str(section_name))
                     column = 0
 
                 y = height - 80
 
             x = x_positions[column]
 
-            # ========= рамка категорії =========
-            block_height = 30 + len(items) * 40
-
-            c.roundRect(x, y - block_height, col_width, block_height, 15)
-
-            # назва категорії
-            c.setFont("DejaVu", 16)
-            c.drawString(x + 10, y - 25, clean_text(category_name))
-
-            y_item = y - 50
+            # ===== назва категорії =====
+            c.setFont("DejaVu", 14)
+            c.drawString(x + 10, y, str(category_name))
+            y -= 25
 
             for _, row in items.iterrows():
 
-                name = clean_text(row["Dish name"])
-                desc = clean_text(row["Description"])
-                price = clean_text(row["Price"])
-                weight = clean_text(row["Weight, g"])
+                name = str(row["Dish name"])
+                desc = str(row["Description"])
+                price = str(row["Price"])
+                weight = str(row["Weight, g"])
 
                 # назва
                 c.setFont("DejaVu", 11)
-                c.drawString(x + 10, y_item, name)
+                c.drawString(x + 10, y, name)
 
-                # ціна справа
-                c.drawRightString(x + col_width - 10, y_item, price)
+                # ціна
+                c.drawRightString(x + col_width - 10, y, price)
 
-                # крапочки
+                y -= 14
+
+                # опис (перенос!)
                 c.setFont("DejaVu", 8)
-                c.drawString(x + 160, y_item, "." * 40)
 
-                # опис
-                c.setFont("DejaVu", 8)
-                c.drawString(x + 10, y_item - 12, desc)
+                y = draw_multiline(
+                    c,
+                    desc,
+                    x + 10,
+                    y,
+                    col_width - 20,
+                    10
+                )
 
                 # грамовка
-                c.drawRightString(x + col_width - 10, y_item - 12, f"{weight} г")
+                c.drawRightString(x + col_width - 10, y + 10, f"{weight} г")
 
-                y_item -= 35
+                y -= 12
 
-            y -= block_height + 15
+                if y < 80:
+                    column += 1
+
+                    if column > 1:
+                        c.showPage()
+                        column = 0
+
+                    y = height - 80
+
+            y -= 15
 
     c.save()
 
-    print("✔ MENU PDF GENERATED")
-
+    print("✔ MENU FIXED")
 
 
 
