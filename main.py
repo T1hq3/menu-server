@@ -1,127 +1,50 @@
-from flask import Flask, send_file, render_template_string
+from flask import Flask
 import requests
-import pandas as pd
 import schedule
 import time
 import threading
 import os
+from datetime import datetime
 
 app = Flask(__name__)
 
-# =============================
-# CONFIG
-# =============================
-
+# --- CONFIG ---
 IDENTIFIER = os.getenv("IDENTIFIER")
 PASSWORD = os.getenv("PASSWORD")
 
 LOGIN_URL = "https://sunrise.choiceqr.com/api/auth/local"
 EXPORT_URL = "https://sunrise.choiceqr.com/api/export/xlsx"
 
-EXCEL_FILE = "menu.xlsx"
-PDF_FILE = "menu.pdf"
+SAVE_PATH = "./exports"
+EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
 
-# =============================
+
+# ======================
 # DOWNLOAD EXCEL
-# =============================
+# ======================
 def download_excel():
     print("Downloading Excel...")
 
+    if not os.path.exists(SAVE_PATH):
+        os.makedirs(SAVE_PATH)
+
     session = requests.Session()
 
-    payload = {
-        "identifier": IDENTIFIER,
-        "password": PASSWORD
-    }
-
-    headers = {
-        "X-Domain": "sunrise",
-        "Content-Type": "application/json"
-    }
-
-    login = session.post(LOGIN_URL, json=payload, headers=headers)
-
-    if login.status_code != 200:
-        print("Login failed:", login.text)
-        return False
-
-    token = login.json().get("token")
-
     session.headers.update({
-        "authorization": token,
-        "X-Domain": "sunrise"
+        "accept": "*/*",
+        "content-type": "application/json",
+        "user-agent": "Mozilla/5.0",
+        "referer": "https://sunrise.choiceqr.com/admin/"
     })
 
-    res = session.get(EXPORT_URL)
+    try:
+        payload = {
+            "identifier": IDENTIFIER,
+            "password": PASSWORD
+        }
 
-    with open(EXCEL_FILE, "wb") as f:
-        f.write(res.content)
+        response = session.post(LOGIN_URL, json=payload)
 
-    print("Excel downloaded")
-    return True
-# =============================
-# GENERATE PDF
-# =============================
-def generate_pdf():
-    print("Generating PDF...")
+        if response.status_code in [200, 201]:
 
-    df = pd.read_excel(EXCEL_FILE)
-
-    with open(PDF_FILE, "w", encoding="utf8") as f:
-        for _, row in df.iterrows():
-            f.write(str(row.get("Dish name", "")) + "\n")
-
-    print("PDF created")
-
-# =============================
-# JOB
-# =============================
-def job():
-    success = download_excel()
-    if success:
-        generate_pdf()
-
-# =============================
-# SCHEDULER
-# =============================
-def scheduler_loop():
-    schedule.every(10).hours.do(job)
-
-    job()  # запуск одразу
-
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
-
-# =============================
-# WEB PAGE
-# =============================
-@app.route("/")
-def home():
-    return render_template_string("""
-        <h1>Menu PDF Server</h1>
-        <form action="/download">
-            <button type="submit">Download latest PDF</button>
-        </form>
-    """)
-
-# =============================
-# DOWNLOAD PDF
-# =============================
-@app.route("/download")
-def download():
-    if os.path.exists(PDF_FILE):
-        return send_file(PDF_FILE, as_attachment=True)
-
-    return "PDF not ready yet"
-
-# =============================
-# START SERVER
-# =============================
-if __name__ == "__main__":
-    thread = threading.Thread(target=scheduler_loop)
-    thread.daemon = True
-    thread.start()
-
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+            token = response.json().get("to
