@@ -90,33 +90,20 @@ def download_excel():
 # ======================
 # GENERATE PDF
 # ======================
-from reportlab.lib.utils import simpleSplit
-
-
-def draw_multiline(c, text, x, y, max_width, line_height):
-    lines = simpleSplit(text, "DejaVu", 8, max_width)
-
-    for line in lines:
-        c.drawString(x, y, line)
-        y -= line_height
-
-    return y
-
-
 def generate_pdf():
 
     if not os.path.exists(EXCEL_FILE):
         return
 
-    print("Generating MENU PDF...")
+    print("Generating CLEAN MENU...")
 
     df = pd.read_excel(EXCEL_FILE).fillna("")
 
     c = canvas.Canvas(PDF_FILE, pagesize=A4)
 
     width, height = A4
-
     margin = 30
+
     col_width = (width - margin * 3) / 2
     x_positions = [margin, margin * 2 + col_width]
 
@@ -124,32 +111,37 @@ def generate_pdf():
 
     for section_name, section_data in sections:
 
-        c.setFont("DejaVu", 20)
+        # ===== КОЖНА СЕКЦІЯ З НОВОЇ СТОРІНКИ =====
+        c.showPage()
+
+        c.setFont("DejaVu", 22)
         c.drawCentredString(width / 2, height - 40, str(section_name))
 
-        y = height - 80
+        y_positions = [height - 90, height - 90]
         column = 0
 
         categories = section_data.groupby("Category")
 
         for category_name, items in categories:
 
-            if y < 120:
+            # якщо колонка переповнилась
+            if y_positions[column] < 120:
+
                 column += 1
 
                 if column > 1:
                     c.showPage()
-                    c.setFont("DejaVu", 20)
+                    c.setFont("DejaVu", 22)
                     c.drawCentredString(width / 2, height - 40, str(section_name))
+                    y_positions = [height - 90, height - 90]
                     column = 0
 
-                y = height - 80
-
             x = x_positions[column]
+            y = y_positions[column]
 
-            # ===== назва категорії =====
+            # ===== Заголовок категорії =====
             c.setFont("DejaVu", 14)
-            c.drawString(x + 10, y, str(category_name))
+            c.drawString(x, y, str(category_name))
             y -= 25
 
             for _, row in items.iterrows():
@@ -159,46 +151,46 @@ def generate_pdf():
                 price = str(row["Price"])
                 weight = str(row["Weight, g"])
 
-                # назва
+                # Назва
                 c.setFont("DejaVu", 11)
-                c.drawString(x + 10, y, name)
-
-                # ціна
-                c.drawRightString(x + col_width - 10, y, price)
+                c.drawString(x, y, name)
+                c.drawRightString(x + col_width, y, price)
 
                 y -= 14
 
-                # опис (перенос!)
+                # Опис
                 c.setFont("DejaVu", 8)
+                desc_lines = simpleSplit(desc, "DejaVu", 8, col_width)
 
-                y = draw_multiline(
-                    c,
-                    desc,
-                    x + 10,
-                    y,
-                    col_width - 20,
-                    10
-                )
+                for line in desc_lines:
+                    c.drawString(x, y, line)
+                    y -= 10
 
-                # грамовка
-                c.drawRightString(x + col_width - 10, y + 10, f"{weight} г")
+                # Вага
+                c.drawRightString(x + col_width, y + 10, f"{weight} г")
 
                 y -= 12
 
-                if y < 80:
+                # Якщо блок переповнив колонку
+                if y < 100:
+
                     column += 1
 
                     if column > 1:
                         c.showPage()
+                        c.setFont("DejaVu", 22)
+                        c.drawCentredString(width / 2, height - 40, str(section_name))
+                        y_positions = [height - 90, height - 90]
                         column = 0
 
-                    y = height - 80
+                    y = y_positions[column]
 
-            y -= 15
+            y -= 20
+            y_positions[column] = y
 
     c.save()
 
-    print("✔ MENU FIXED")
+    print("✔ MENU FIXED COMPLETELY")
 
 
 
