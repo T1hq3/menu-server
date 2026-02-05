@@ -90,39 +90,107 @@ def download_excel():
 # ======================
 # GENERATE PDF
 # ======================
+def clean_text(val):
+    if pd.isna(val):
+        return ""
+    return str(val)
+
+
 def generate_pdf():
 
     if not os.path.exists(EXCEL_FILE):
-        print("Excel missing, PDF skipped")
+        print("Excel missing")
         return
 
-    print("Generating PDF...")
+    print("Generating MENU PDF...")
 
-    try:
-        df = pd.read_excel(EXCEL_FILE)
+    df = pd.read_excel(EXCEL_FILE)
+    df = df.fillna("")
 
-        c = canvas.Canvas(PDF_FILE, pagesize=A4)
-        c.setFont("DejaVu", 12)
+    c = canvas.Canvas(PDF_FILE, pagesize=A4)
 
-        width, height = A4
-        y = height - 40
+    width, height = A4
 
-        for _, row in df.iterrows():
-            text = str(row.get("Dish name", ""))
+    margin = 30
+    col_width = (width - margin * 3) / 2
 
-            c.drawString(40, y, text)
-            y -= 20
+    x_positions = [margin, margin * 2 + col_width]
 
-            if y < 40:
-                c.showPage()
-                c.setFont("DejaVu", 12)
-                y = height - 40
+    # ========= ГРУПУЄМО ПО SECTION =========
+    sections = df.groupby("Section")
 
-        c.save()
-        print("✔ PDF generated")
+    for section_name, section_data in sections:
 
-    except Exception as e:
-        print("PDF error:", e)
+        c.setFont("DejaVu", 22)
+        c.drawCentredString(width / 2, height - 40, clean_text(section_name))
+
+        y = height - 80
+        column = 0
+
+        categories = section_data.groupby("Category")
+
+        for category_name, items in categories:
+
+            # перенос колонки / сторінки
+            if y < 150:
+                column += 1
+
+                if column > 1:
+                    c.showPage()
+
+                    c.setFont("DejaVu", 22)
+                    c.drawCentredString(width / 2, height - 40, clean_text(section_name))
+
+                    column = 0
+
+                y = height - 80
+
+            x = x_positions[column]
+
+            # ========= рамка категорії =========
+            block_height = 30 + len(items) * 40
+
+            c.roundRect(x, y - block_height, col_width, block_height, 15)
+
+            # назва категорії
+            c.setFont("DejaVu", 16)
+            c.drawString(x + 10, y - 25, clean_text(category_name))
+
+            y_item = y - 50
+
+            for _, row in items.iterrows():
+
+                name = clean_text(row["Dish name"])
+                desc = clean_text(row["Description"])
+                price = clean_text(row["Price"])
+                weight = clean_text(row["Weight, g"])
+
+                # назва
+                c.setFont("DejaVu", 11)
+                c.drawString(x + 10, y_item, name)
+
+                # ціна справа
+                c.drawRightString(x + col_width - 10, y_item, price)
+
+                # крапочки
+                c.setFont("DejaVu", 8)
+                c.drawString(x + 160, y_item, "." * 40)
+
+                # опис
+                c.setFont("DejaVu", 8)
+                c.drawString(x + 10, y_item - 12, desc)
+
+                # грамовка
+                c.drawRightString(x + col_width - 10, y_item - 12, f"{weight} г")
+
+                y_item -= 35
+
+            y -= block_height + 15
+
+    c.save()
+
+    print("✔ MENU PDF GENERATED")
+
 
 
 
