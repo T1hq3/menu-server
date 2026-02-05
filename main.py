@@ -8,19 +8,18 @@ import os
 
 app = Flask(__name__)
 
-# --- CONFIG ---
+# =============================
+# CONFIG
+# =============================
+
 IDENTIFIER = os.getenv("IDENTIFIER")
 PASSWORD = os.getenv("PASSWORD")
 
 LOGIN_URL = "https://sunrise.choiceqr.com/api/auth/local"
 EXPORT_URL = "https://sunrise.choiceqr.com/api/export/xlsx"
 
-import os
-
-IDENTIFIER = os.getenv("IDENTIFIER")
-PASSWORD = os.getenv("PASSWORD")
-
-
+EXCEL_FILE = "menu.xlsx"
+PDF_FILE = "menu.pdf"
 
 # =============================
 # DOWNLOAD EXCEL
@@ -34,12 +33,12 @@ def download_excel():
     login = session.post(LOGIN_URL, json=payload)
 
     if login.status_code != 200:
-        print("Login failed")
+        print("Login failed:", login.text)
         return False
 
-    token = login.json().get("token")
+    token = login.json().get("jwt")
 
-    session.headers.update({"authorization": token})
+    session.headers.update({"Authorization": f"Bearer {token}"})
     res = session.get(EXPORT_URL)
 
     with open(EXCEL_FILE, "wb") as f:
@@ -47,7 +46,6 @@ def download_excel():
 
     print("Excel downloaded")
     return True
-
 
 # =============================
 # GENERATE PDF
@@ -63,30 +61,25 @@ def generate_pdf():
 
     print("PDF created")
 
-
 # =============================
-# MAIN JOB
+# JOB
 # =============================
 def job():
     success = download_excel()
-
     if success:
         generate_pdf()
 
-
 # =============================
-# SCHEDULER LOOP
+# SCHEDULER
 # =============================
 def scheduler_loop():
     schedule.every(10).hours.do(job)
 
-    # запуск одразу після старту сервера
-    job()
+    job()  # запуск одразу
 
     while True:
         schedule.run_pending()
         time.sleep(60)
-
 
 # =============================
 # WEB PAGE
@@ -100,7 +93,6 @@ def home():
         </form>
     """)
 
-
 # =============================
 # DOWNLOAD PDF
 # =============================
@@ -111,23 +103,13 @@ def download():
 
     return "PDF not ready yet"
 
-
 # =============================
-# START BACKGROUND THREAD
+# START SERVER
 # =============================
 if __name__ == "__main__":
     thread = threading.Thread(target=scheduler_loop)
     thread.daemon = True
     thread.start()
 
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-
-
-# =============================
-# RUN SERVER
-# =============================
-if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
