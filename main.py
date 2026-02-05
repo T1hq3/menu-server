@@ -109,7 +109,7 @@ def generate_pdf():
 
         for _, row in df.iterrows():
 
-            text = str(row.get("Dish name", "")).encode("utf-8").decode("utf-8")
+           text = str(row.get("Dish name", ""))
 
             c.drawString(40, y, text)
 
@@ -117,6 +117,7 @@ def generate_pdf():
 
             if y < 40:
                 c.showPage()
+                c.setFont("DejaVu", 12)
                 y = height - 40
 
         c.save()
