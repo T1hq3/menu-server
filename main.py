@@ -79,7 +79,7 @@ def download_excel():
 
             print("✔ Excel updated")
 
-            generate_pdf()  # ← автоматичне створення PDF
+            generate_clean_menu_pdf() 
 
         else:
             print("Download error:", export_res.text)
