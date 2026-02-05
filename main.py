@@ -35,8 +35,8 @@ def download_excel():
     }
 
     headers = {
-        "Origin": "https://sunrise.choiceqr.com",
-        "Referer": "https://sunrise.choiceqr.com"
+        "X-Domain": "sunrise",
+        "Content-Type": "application/json"
     }
 
     login = session.post(LOGIN_URL, json=payload, headers=headers)
@@ -49,8 +49,7 @@ def download_excel():
 
     session.headers.update({
         "authorization": token,
-        "Origin": "https://sunrise.choiceqr.com",
-        "Referer": "https://sunrise.choiceqr.com"
+        "X-Domain": "sunrise"
     })
 
     res = session.get(EXPORT_URL)
@@ -60,8 +59,6 @@ def download_excel():
 
     print("Excel downloaded")
     return True
-
-
 # =============================
 # GENERATE PDF
 # =============================
