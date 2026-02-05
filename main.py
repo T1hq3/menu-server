@@ -108,11 +108,9 @@ def generate_pdf():
         y = height - 40
 
         for _, row in df.iterrows():
-
-           text = str(row.get("Dish name", ""))
+            text = str(row.get("Dish name", ""))
 
             c.drawString(40, y, text)
-
             y -= 20
 
             if y < 40:
@@ -121,11 +119,11 @@ def generate_pdf():
                 y = height - 40
 
         c.save()
-
         print("✔ PDF generated")
 
     except Exception as e:
         print("PDF error:", e)
+
 
 
 # ======================
