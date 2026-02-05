@@ -3,3 +3,6 @@ requests
 pandas
 schedule
 openpyxl
+pandas
+openpyxl
+reportlab
