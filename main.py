@@ -15,8 +15,11 @@ PASSWORD = os.getenv("PASSWORD")
 LOGIN_URL = "https://sunrise.choiceqr.com/api/auth/local"
 EXPORT_URL = "https://sunrise.choiceqr.com/api/export/xlsx"
 
-EXCEL_FILE = "menu.xlsx"
-PDF_FILE = "menu.pdf"
+import os
+
+IDENTIFIER = os.getenv("IDENTIFIER")
+PASSWORD = os.getenv("PASSWORD")
+
 
 
 # =============================
