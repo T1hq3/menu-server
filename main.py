@@ -9,8 +9,8 @@ import os
 app = Flask(__name__)
 
 # --- CONFIG ---
-IDENTIFIER = "Export"
-PASSWORD = "123123"
+IDENTIFIER = os.getenv("IDENTIFIER")
+PASSWORD = os.getenv("PASSWORD")
 
 LOGIN_URL = "https://sunrise.choiceqr.com/api/auth/local"
 EXPORT_URL = "https://sunrise.choiceqr.com/api/export/xlsx"
