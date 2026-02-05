@@ -112,11 +112,14 @@ def download():
 # =============================
 # START BACKGROUND THREAD
 # =============================
-@app.before_first_request
-def start_scheduler():
+if __name__ == "__main__":
     thread = threading.Thread(target=scheduler_loop)
     thread.daemon = True
     thread.start()
+
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
 
 
 # =============================
