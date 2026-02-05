@@ -25,9 +25,6 @@ EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
 def download_excel():
     print("Downloading Excel...")
 
-    if not os.path.exists(SAVE_PATH):
-        os.makedirs(SAVE_PATH)
-
     session = requests.Session()
 
     session.headers.update({
@@ -37,21 +34,36 @@ def download_excel():
         "referer": "https://sunrise.choiceqr.com/admin/"
     })
 
-    try:
-        payload = {
-            "identifier": IDENTIFIER,
-            "password": PASSWORD
-        }
+    payload = {
+        "identifier": IDENTIFIER,
+        "password": PASSWORD
+    }
 
-        response = session.post(LOGIN_URL, json=payload)
+    response = session.post(LOGIN_URL, json=payload)
 
-        if response.status_code in [200, 201]:
+    if response.status_code not in [200, 201]:
+        print("Login error:", response.status_code)
+        print(response.text)
+        return False
 
-            token = response.json().get("token")
+    token = response.json().get("token")
 
-            if not token:
-                print("Token not found")
-                return
+    session.headers.update({
+        "authorization": token
+    })
+
+    export = session.get(EXPORT_URL, cookies={"token": token})
+
+    if export.status_code != 200:
+        print("Export error:", export.status_code)
+        return False
+
+    with open(EXCEL_FILE, "wb") as f:
+        f.write(export.content)
+
+    print("Excel downloaded ✔")
+    return True
+
 
             session.headers.update({"authorization": token})
 
