@@ -97,9 +97,12 @@ def generate_pdf():
         print("Excel missing")
         return
 
-    print("Generating CLEAN MENU...")
+    print("Generating FULL MENU...")
 
     df = pd.read_excel(EXCEL_FILE)
+
+    # Прибираємо пусті значення
+    df = df.fillna("")
 
     c = canvas.Canvas(PDF_FILE, pagesize=A4)
 
@@ -107,67 +110,83 @@ def generate_pdf():
 
     margin = 40
     column_width = (width - margin * 3) / 2
-
     x_positions = [margin, margin * 2 + column_width]
 
-    y = height - 80
-    column = 0
+    # ================= SECTION =================
+    sections = df.groupby("Section")
 
-    # Заголовок сторінки
-    c.setFont("DejaVu", 26)
-    c.drawString(margin, height - 40, "Алкогольний бар")
+    for section_name, section_df in sections:
 
-    grouped = df.groupby("Category")
+        c.showPage()
 
-    for category, items in grouped:
+        # Заголовок Section
+        c.setFont("DejaVu", 26)
+        c.drawString(margin, height - 40, str(section_name))
 
-        x = x_positions[column]
+        y = height - 80
+        column = 0
 
-        # ===== РАМКА КАТЕГОРІЇ =====
-        block_height = 20 + len(items) * 18 + 20
+        # ================= CATEGORY =================
+        categories = section_df.groupby("Category")
 
-        if y - block_height < 50:
-            column += 1
+        for category_name, items in categories:
 
-            if column > 1:
-                c.showPage()
-                c.setFont("DejaVu", 26)
-                c.drawString(margin, height - 40, "Алкогольний бар")
-
-                column = 0
-
-            y = height - 80
             x = x_positions[column]
 
-        # Малюємо рамку
-        c.roundRect(x, y - block_height, column_width, block_height, 12)
+            block_height = 30 + len(items) * 18
 
-        # Заголовок категорії
-        c.setFont("DejaVu", 18)
-        c.drawString(x + 10, y - 25, str(category))
+            if y - block_height < 60:
 
-        item_y = y - 45
+                column += 1
 
-        for _, row in items.iterrows():
+                if column > 1:
+                    c.showPage()
 
-            name = str(row.get("Dish name", ""))
-            price = str(row.get("Price", ""))
+                    c.setFont("DejaVu", 26)
+                    c.drawString(margin, height - 40, str(section_name))
 
-            c.setFont("DejaVu", 13)
+                    column = 0
 
-            c.drawString(x + 10, item_y, name)
-            c.drawRightString(x + column_width - 10, item_y, price)
+                y = height - 80
+                x = x_positions[column]
 
-            item_y -= 18
+            # ===== РАМКА КАТЕГОРІЇ =====
+            c.roundRect(x, y - block_height, column_width, block_height, 12)
 
-        y -= block_height + 15
+            # Назва категорії
+            c.setFont("DejaVu", 18)
+            c.drawString(x + 10, y - 25, str(category_name))
+
+            item_y = y - 45
+
+            # ===== СТРАВИ =====
+            for _, row in items.iterrows():
+
+                name = str(row.get("Dish name", ""))
+                price = str(row.get("Price", ""))
+                desc = str(row.get("Description", ""))
+
+                c.setFont("DejaVu", 13)
+                c.drawString(x + 10, item_y, name)
+
+                c.drawRightString(
+                    x + column_width - 10,
+                    item_y,
+                    price
+                )
+
+                item_y -= 15
+
+                if desc:
+                    c.setFont("DejaVu", 9)
+                    c.drawString(x + 10, item_y, desc[:80])
+                    item_y -= 15
+
+            y -= block_height + 15
 
     c.save()
 
-    print("✔ CLEAN MENU READY")
-
-
-
+    print("✔ FULL MENU READY")
 
 # ======================
 # SCHEDULER
