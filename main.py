@@ -28,17 +28,31 @@ def download_excel():
     print("Downloading Excel...")
 
     session = requests.Session()
-    payload = {"identifier": IDENTIFIER, "password": PASSWORD}
 
-    login = session.post(LOGIN_URL, json=payload)
+    payload = {
+        "identifier": IDENTIFIER,
+        "password": PASSWORD
+    }
+
+    headers = {
+        "Origin": "https://sunrise.choiceqr.com",
+        "Referer": "https://sunrise.choiceqr.com"
+    }
+
+    login = session.post(LOGIN_URL, json=payload, headers=headers)
 
     if login.status_code != 200:
         print("Login failed:", login.text)
         return False
 
-    token = login.json().get("jwt")
+    token = login.json().get("token")
 
-    session.headers.update({"Authorization": f"Bearer {token}"})
+    session.headers.update({
+        "authorization": token,
+        "Origin": "https://sunrise.choiceqr.com",
+        "Referer": "https://sunrise.choiceqr.com"
+    })
+
     res = session.get(EXPORT_URL)
 
     with open(EXCEL_FILE, "wb") as f:
@@ -46,6 +60,7 @@ def download_excel():
 
     print("Excel downloaded")
     return True
+
 
 # =============================
 # GENERATE PDF
