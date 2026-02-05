@@ -5,6 +5,10 @@ import time
 import threading
 import os
 
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+import pandas as pd
+
 app = Flask(__name__)
 
 # ======================
@@ -18,6 +22,7 @@ EXPORT_URL = "https://sunrise.choiceqr.com/api/export/xlsx"
 
 SAVE_PATH = "./exports"
 EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
+PDF_FILE = f"{SAVE_PATH}/menu.pdf"
 
 
 # ======================
@@ -62,9 +67,14 @@ def download_excel():
         export_res = session.get(EXPORT_URL)
 
         if export_res.status_code == 200:
+
             with open(EXCEL_FILE, "wb") as f:
                 f.write(export_res.content)
+
             print("✔ Excel updated")
+
+            generate_pdf()  # ← автоматичне створення PDF
+
         else:
             print("Download error:", export_res.text)
 
@@ -73,12 +83,50 @@ def download_excel():
 
 
 # ======================
+# GENERATE PDF
+# ======================
+def generate_pdf():
+
+    if not os.path.exists(EXCEL_FILE):
+        print("Excel missing, PDF skipped")
+        return
+
+    print("Generating PDF...")
+
+    try:
+        df = pd.read_excel(EXCEL_FILE)
+
+        c = canvas.Canvas(PDF_FILE, pagesize=A4)
+
+        width, height = A4
+        y = height - 40
+
+        for _, row in df.iterrows():
+
+            text = str(row.get("Dish name", ""))
+
+            c.drawString(40, y, text)
+
+            y -= 20
+
+            if y < 40:
+                c.showPage()
+                y = height - 40
+
+        c.save()
+
+        print("✔ PDF generated")
+
+    except Exception as e:
+        print("PDF error:", e)
+
+
+# ======================
 # SCHEDULER
 # ======================
 def scheduler_loop():
     schedule.every(30).minutes.do(download_excel)
 
-    # запуск одразу після старту
     download_excel()
 
     while True:
@@ -93,20 +141,32 @@ def scheduler_loop():
 def home():
     return """
     <h1>Menu server is running</h1>
-    <a href="/excel">Download Excel</a>
+    <a href="/excel">Download Excel</a><br>
+    <a href="/pdf">Download PDF</a>
     """
+
 
 @app.route("/excel")
 def get_excel():
     if os.path.exists(EXCEL_FILE):
         return send_file(EXCEL_FILE, as_attachment=True)
+
     return "Excel not ready yet"
+
+
+@app.route("/pdf")
+def download_pdf():
+    if os.path.exists(PDF_FILE):
+        return send_file(PDF_FILE, as_attachment=True)
+
+    return "PDF not ready"
 
 
 # ======================
 # START SERVER
 # ======================
 if __name__ == "__main__":
+
     t = threading.Thread(target=scheduler_loop, daemon=True)
     t.start()
 
