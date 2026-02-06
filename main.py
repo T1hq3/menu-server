@@ -128,134 +128,182 @@ def generate_clean_menu_pdf():
     c = canvas.Canvas(PDF_FILE, pagesize=A4)
     width, height = A4
 
-    column_width = width / 2 - 40
+    # ===== PAGE / COLUMNS =====
+    MARGIN_TOP = 50
+    MARGIN_BOTTOM = 60
+    COLUMN_GAP = 20
+
+    column_width = (width - COLUMN_GAP) / 2 - 40
     x_positions = [30, width / 2 + 10]
 
-    y = height - 50
+    y = height - MARGIN_TOP
     column = 0
     current_section = None
 
+    # ===== CATEGORY GEOMETRY =====
+    CATEGORY_HEADER_HEIGHT = 38
+    CATEGORY_RADIUS = 12
+    CATEGORY_PADDING_TOP = 12
+    CATEGORY_PADDING_BOTTOM = 14
+
+    CONTENT_LEFT_PADDING = 12
+    CONTENT_RIGHT_PADDING = 12
+
+    # ===== HELPERS =====
     def new_page():
         nonlocal column, y
         c.showPage()
         column = 0
-        y = height - 50
+        y = height - MARGIN_TOP
 
     def new_column():
         nonlocal column, y
         column += 1
         if column > 1:
             new_page()
-        y = height - 50
+        y = height - MARGIN_TOP
 
+    def ensure_space(min_height):
+        nonlocal y
+        if y - min_height < MARGIN_BOTTOM:
+            new_column()
+
+    # ===== SECTION =====
     def draw_section(title):
         nonlocal y
         c.setFont("DejaVu", 26)
         c.drawCentredString(width / 2, y, title)
+
         c.setLineWidth(3)
         c.line(80, y - 10, width - 80, y - 10)
+
         y -= 45
 
+    # ===== CATEGORY HEADER =====
     def draw_category_header(x, title):
-        header_height = 38
-        padding = 2
+        nonlocal y
 
         c.setLineWidth(1.5)
         c.roundRect(
             x,
-            y - header_height,
+            y - CATEGORY_HEADER_HEIGHT,
             column_width,
-            header_height,
-            10,
+            CATEGORY_HEADER_HEIGHT,
+            CATEGORY_RADIUS,
             stroke=1,
             fill=0
         )
 
         c.setFillColorRGB(0.9, 0.9, 0.9)
         c.roundRect(
-            x + padding,
-            y - header_height + padding,
-            column_width - padding * 2,
-            header_height - padding * 2,
-            8,
+            x + 2,
+            y - CATEGORY_HEADER_HEIGHT + 2,
+            column_width - 4,
+            CATEGORY_HEADER_HEIGHT - 4,
+            CATEGORY_RADIUS - 2,
             stroke=0,
             fill=1
         )
 
         c.setFillColorRGB(0, 0, 0)
         c.setFont("DejaVu", 18)
-        c.drawString(x + 12, y - 26, title)
+        c.drawString(
+            x + CONTENT_LEFT_PADDING,
+            y - 26,
+            title
+        )
 
-        return y - header_height - 12
+        y -= CATEGORY_HEADER_HEIGHT + CATEGORY_PADDING_TOP
+        return y
 
     grouped = df.groupby(["Section", "Category"])
 
     for (section, category), items in grouped:
 
-        # ===== SECTION =====
+        # ===== SECTION LOGIC =====
         if current_section != section:
-            if y < 140:
-                new_column()
+            new_column()  # section завжди з початку колонки
             draw_section(str(section))
             current_section = section
 
         x = x_positions[column]
 
-        y = draw_category_header(x, str(category))
-        block_top = y + 50
+        ensure_space(120)
+        draw_category_header(x, str(category))
+        block_top = y + CATEGORY_HEADER_HEIGHT + CATEGORY_PADDING_TOP
 
+        # ===== ITEMS =====
         for _, row in items.iterrows():
 
-            name_lines = split_text(row.get("Dish name", ""), 28)
-            desc_lines = split_text(row.get("Description", ""), 45)
+            name_lines = split_text(str(row.get("Dish name", "")), 28)
+            desc_lines = split_text(str(row.get("Description", "")), 45)
+            price = str(row.get("Price", ""))
 
-            item_height = len(name_lines) * 15 + len(desc_lines) * 12 + 10
+            item_height = (
+                len(name_lines) * 15 +
+                len(desc_lines) * 12 +
+                10
+            )
 
-            if y - item_height < 60:
-                # закриваємо рамку
+            if y - item_height < MARGIN_BOTTOM:
+                # закриваємо рамку поточної частини
                 c.roundRect(
                     x,
-                    y,
+                    y - CATEGORY_PADDING_BOTTOM,
                     column_width,
-                    block_top - y,
-                    12
+                    block_top - (y - CATEGORY_PADDING_BOTTOM),
+                    CATEGORY_RADIUS
                 )
 
                 new_column()
                 x = x_positions[column]
-                y = draw_category_header(x, str(category))
-                block_top = y + 50
+                draw_category_header(x, str(category))
+                block_top = y + CATEGORY_HEADER_HEIGHT + CATEGORY_PADDING_TOP
 
-            price = str(row.get("Price", ""))
-
-            # NAME
+            # --- NAME + PRICE (first line)
             c.setFont("DejaVu", 13)
-            for line in name_lines:
-                c.drawString(x + 12, y, line)
-                y -= 15
+            c.drawString(
+                x + CONTENT_LEFT_PADDING,
+                y,
+                name_lines[0]
+            )
 
-            # PRICE
             c.drawRightString(
-                x + column_width - 12,
-                y + 15,
+                x + column_width - CONTENT_RIGHT_PADDING,
+                y,
                 price
             )
 
-            # DESCRIPTION
+            y -= 15
+
+            # --- name continuation
+            for line in name_lines[1:]:
+                c.drawString(
+                    x + CONTENT_LEFT_PADDING,
+                    y,
+                    line
+                )
+                y -= 15
+
+            # --- description
             c.setFont("DejaVu", 9)
             for line in desc_lines:
-                c.drawString(x + 12, y, line)
+                c.drawString(
+                    x + CONTENT_LEFT_PADDING,
+                    y,
+                    line
+                )
                 y -= 12
 
             y -= 6
 
-        # рамка в кінці category
+        # ===== CATEGORY FRAME END =====
         c.roundRect(
             x,
-            y,
+            y - CATEGORY_PADDING_BOTTOM,
             column_width,
-            block_top - y,
-            12
+            block_top - (y - CATEGORY_PADDING_BOTTOM),
+            CATEGORY_RADIUS
         )
 
         y -= 30
