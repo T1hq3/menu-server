@@ -174,10 +174,13 @@ def generate_clean_menu_pdf():
             new_column()
 
     def start_section():
-        nonlocal y
+        nonlocal y, column
         # якщо ми не на самому верху колонки — починаємо з нової
-        if y < height - MARGIN_TOP - 20:
-             new_column()
+       if column != 0 or y < height - MARGIN_TOP:
+             c.showPage()
+        # повний reset
+        column = 0
+        y = height - MARGIN_TOP
 
 
     # ===== SECTION =====
