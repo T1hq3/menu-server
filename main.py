@@ -176,13 +176,20 @@ def generate_clean_menu_pdf():
     def start_section():
         nonlocal y, column
 
-        # якщо ми не на початку сторінки — починаємо з нової
-        if column != 0 or y < height - MARGIN_TOP:
-            c.showPage()
+        # мінімальна висота, яка потрібна section + 1 category
+        MIN_SECTION_HEIGHT = SECTION_SPACING_AFTER + 120
 
-        # повний reset координат
-        column = 0
-        y = height - MARGIN_TOP
+        # якщо section не вміщається — нова сторінка
+        if y - MIN_SECTION_HEIGHT < MARGIN_BOTTOM:
+            c.showPage()
+            column = 0
+            y = height - MARGIN_TOP
+            return
+    
+        # якщо ми не на початку колонки — переходимо в нову колонку
+        if column != 0:
+            new_column()
+
 
 
 
