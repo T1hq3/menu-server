@@ -140,11 +140,16 @@ def generate_clean_menu_pdf():
     column = 0
     current_section = None
 
+    # ===== SECTION =====
+    SECTION_SPACING_AFTER = 60
+
     # ===== CATEGORY GEOMETRY =====
     CATEGORY_HEADER_HEIGHT = 38
     CATEGORY_RADIUS = 12
     CATEGORY_PADDING_TOP = 12
     CATEGORY_PADDING_BOTTOM = 14
+    CATEGORY_SPACING_AFTER = 24
+    MIN_CATEGORY_BODY_HEIGHT = 40
 
     CONTENT_LEFT_PADDING = 12
     CONTENT_RIGHT_PADDING = 12
@@ -177,7 +182,7 @@ def generate_clean_menu_pdf():
         c.setLineWidth(3)
         c.line(80, y - 10, width - 80, y - 10)
 
-        y -= 45
+        y -= SECTION_SPACING_AFTER
 
     # ===== CATEGORY HEADER =====
     def draw_category_header(x, title):
@@ -214,15 +219,14 @@ def generate_clean_menu_pdf():
         )
 
         y -= CATEGORY_HEADER_HEIGHT + CATEGORY_PADDING_TOP
-        return y
 
     grouped = df.groupby(["Section", "Category"])
 
     for (section, category), items in grouped:
 
-        # ===== SECTION LOGIC =====
+        # ===== SECTION =====
         if current_section != section:
-            new_column()  # section завжди з початку колонки
+            new_column()
             draw_section(str(section))
             current_section = section
 
@@ -241,12 +245,16 @@ def generate_clean_menu_pdf():
 
             item_height = (
                 len(name_lines) * 15 +
-                len(desc_lines) * 12 +
-                10
+                len(desc_lines) * 13 +
+                18
             )
 
             if y - item_height < MARGIN_BOTTOM:
-                # закриваємо рамку поточної частини
+                # close current category frame
+                current_height = block_top - (y - CATEGORY_PADDING_BOTTOM)
+                if current_height < CATEGORY_HEADER_HEIGHT + MIN_CATEGORY_BODY_HEIGHT:
+                    y -= (CATEGORY_HEADER_HEIGHT + MIN_CATEGORY_BODY_HEIGHT - current_height)
+
                 c.roundRect(
                     x,
                     y - CATEGORY_PADDING_BOTTOM,
@@ -260,7 +268,7 @@ def generate_clean_menu_pdf():
                 draw_category_header(x, str(category))
                 block_top = y + CATEGORY_HEADER_HEIGHT + CATEGORY_PADDING_TOP
 
-            # --- NAME + PRICE (first line)
+            # --- NAME + PRICE
             c.setFont("DejaVu", 13)
             c.drawString(
                 x + CONTENT_LEFT_PADDING,
@@ -276,7 +284,6 @@ def generate_clean_menu_pdf():
 
             y -= 15
 
-            # --- name continuation
             for line in name_lines[1:]:
                 c.drawString(
                     x + CONTENT_LEFT_PADDING,
@@ -285,7 +292,7 @@ def generate_clean_menu_pdf():
                 )
                 y -= 15
 
-            # --- description
+            # --- DESCRIPTION
             c.setFont("DejaVu", 9)
             for line in desc_lines:
                 c.drawString(
@@ -293,11 +300,15 @@ def generate_clean_menu_pdf():
                     y,
                     line
                 )
-                y -= 12
+                y -= 13
 
-            y -= 6
+            y -= 8
 
-        # ===== CATEGORY FRAME END =====
+        # ===== CLOSE CATEGORY FRAME =====
+        current_height = block_top - (y - CATEGORY_PADDING_BOTTOM)
+        if current_height < CATEGORY_HEADER_HEIGHT + MIN_CATEGORY_BODY_HEIGHT:
+            y -= (CATEGORY_HEADER_HEIGHT + MIN_CATEGORY_BODY_HEIGHT - current_height)
+
         c.roundRect(
             x,
             y - CATEGORY_PADDING_BOTTOM,
@@ -306,7 +317,7 @@ def generate_clean_menu_pdf():
             CATEGORY_RADIUS
         )
 
-        y -= 30
+        y -= CATEGORY_SPACING_AFTER
 
     c.save()
     print("✔ CLEAN MENU GENERATED")
