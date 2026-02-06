@@ -173,6 +173,13 @@ def generate_clean_menu_pdf():
         if y - min_height < MARGIN_BOTTOM:
             new_column()
 
+    def start_section():
+        nonlocal y
+        # якщо ми не на самому верху колонки — починаємо з нової
+        if y < height - MARGIN_TOP - 20:
+             new_column()
+
+
     # ===== SECTION =====
     def draw_section(title):
         nonlocal y
@@ -226,7 +233,7 @@ def generate_clean_menu_pdf():
 
         # ===== SECTION =====
         if current_section != section:
-            new_column()
+            start_section()
             draw_section(str(section))
             current_section = section
 
