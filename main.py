@@ -123,8 +123,8 @@ def generate_clean_menu_pdf():
     df = pd.read_excel(EXCEL_FILE)
 
     c = canvas.Canvas(PDF_FILE, pagesize=A4)
-
     width, height = A4
+
     column_width = width / 2 - 40
     x_positions = [30, width / 2 + 10]
 
@@ -145,6 +145,33 @@ def generate_clean_menu_pdf():
             new_page()
         y = height - 40
 
+    def draw_category_header(x, y, category):
+        padding = 2
+
+        # рамка
+        c.roundRect(
+            x,
+            y - 35,
+            column_width,
+            35,
+            12
+        )
+
+        # сірий header (всередині рамки)
+        c.setFillColorRGB(0.85, 0.85, 0.85)
+        c.rect(
+            x + padding,
+            y - 35 + padding,
+            column_width - padding * 2,
+            35 - padding,
+            fill=1,
+            stroke=0
+        )
+
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("DejaVu", 18)
+        c.drawString(x + 10, y - 25, str(category))
+
     grouped = df.groupby(["Section", "Category"])
 
     for (section, category), items in grouped:
@@ -155,10 +182,9 @@ def generate_clean_menu_pdf():
             if y < 120:
                 new_column()
 
-            c.setFont("DejaVu", 22)
+            c.setFont("DejaVu", 26)
             c.drawCentredString(width / 2, y, str(section))
-            
-            # декоративна лінія
+
             c.setLineWidth(2)
             c.line(100, y - 10, width - 100, y - 10)
 
@@ -167,9 +193,8 @@ def generate_clean_menu_pdf():
 
         x = x_positions[column]
 
-        # ===== ПІДГОТОВКА ITEMS =====
-        prepared = []
-        block_height = 45
+        draw_category_header(x, y, category)
+        item_y = y - 50
 
         for _, row in items.iterrows():
 
@@ -179,72 +204,14 @@ def generate_clean_menu_pdf():
             item_height = (
                 len(name_lines) * 15 +
                 len(desc_lines) * 12 +
-                12
+                15
             )
 
-            prepared.append((row, name_lines, desc_lines, item_height))
-            block_height += item_height
-
-        # ===== ПЕРЕНОС CATEGORY =====
-        if y - block_height < 60:
-            new_column()
-            x = x_positions[column]
-
-        # ===== РАМКА CATEGORY =====
-        c.roundRect(
-            x,
-            y - block_height,
-            column_width,
-            block_height,
-            12
-        )
-
-        # ===== HEADER CATEGORY =====
-        c.setFillColorRGB(0.85, 0.85, 0.85)
-        c.rect(x, y - 35, column_width, 35, fill=1, stroke=0)
-
-        c.setFillColorRGB(0, 0, 0)
-        c.setFont("DejaVu", 18)
-        c.drawString(x + 10, y - 25, str(category))
-
-        item_y = y - 50
-
-        # ===== ITEMS =====
-        for row, name_lines, desc_lines, item_height in prepared:
-
+            # перенос item
             if item_y - item_height < 60:
-
                 new_column()
                 x = x_positions[column]
-
-                # повтор header
-                c.roundRect(
-                    x,
-                    y - block_height,
-                    column_width,
-                    block_height,
-                    12
-                )
-                
-                draw_category_header()
-                item_y = y - 50
-
-                c.setFillColorRGB(0.85, 0.85, 0.85)
-                padding = 2
-
-                c.rect(
-                    x + padding,
-                    y - 35 + padding,
-                    column_width - padding * 2,
-                    35 - padding,
-                    fill=1,
-                    stroke=0
-                )
-
-                c.setFillColorRGB(0, 0, 0)
-                c.setFont("DejaVu", 18)
-                c.drawString(x + 10, y - 25, str(category))
-
+                draw_category_header(x, y, category)
                 item_y = y - 50
 
             price = str(row.get("Price", ""))
@@ -270,10 +237,11 @@ def generate_clean_menu_pdf():
 
             item_y -= 6
 
-        y -= block_height + 20
+        y = item_y - 25
 
     c.save()
     print("✔ CLEAN MENU GENERATED")
+
 
 
 
