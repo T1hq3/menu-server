@@ -112,6 +112,9 @@ def split_text(text, max_len):
 # ======================
 # GENERATE PDF
 # ======================
+# ======================
+# GENERATE CLEAN MENU
+# ======================
 def generate_clean_menu_pdf():
 
     if not os.path.exists(EXCEL_FILE):
@@ -128,7 +131,7 @@ def generate_clean_menu_pdf():
     column_width = width / 2 - 40
     x_positions = [30, width / 2 + 10]
 
-    y = height - 40
+    y = height - 50
     column = 0
     current_section = None
 
@@ -136,41 +139,54 @@ def generate_clean_menu_pdf():
         nonlocal column, y
         c.showPage()
         column = 0
-        y = height - 40
+        y = height - 50
 
     def new_column():
         nonlocal column, y
         column += 1
         if column > 1:
             new_page()
-        y = height - 40
+        y = height - 50
 
-    def draw_category_header(x, y, category):
+    def draw_section(title):
+        nonlocal y
+        c.setFont("DejaVu", 26)
+        c.drawCentredString(width / 2, y, title)
+        c.setLineWidth(3)
+        c.line(80, y - 10, width - 80, y - 10)
+        y -= 45
+
+    def draw_category_header(x, title):
+        header_height = 38
         padding = 2
 
-        # рамка
+        c.setLineWidth(1.5)
         c.roundRect(
             x,
-            y - 35,
+            y - header_height,
             column_width,
-            35,
-            12
+            header_height,
+            10,
+            stroke=1,
+            fill=0
         )
 
-        # сірий header (всередині рамки)
-        c.setFillColorRGB(0.85, 0.85, 0.85)
-        c.rect(
+        c.setFillColorRGB(0.9, 0.9, 0.9)
+        c.roundRect(
             x + padding,
-            y - 35 + padding,
+            y - header_height + padding,
             column_width - padding * 2,
-            35 - padding,
-            fill=1,
-            stroke=0
+            header_height - padding * 2,
+            8,
+            stroke=0,
+            fill=1
         )
 
         c.setFillColorRGB(0, 0, 0)
         c.setFont("DejaVu", 18)
-        c.drawString(x + 10, y - 25, str(category))
+        c.drawString(x + 12, y - 26, title)
+
+        return y - header_height - 12
 
     grouped = df.groupby(["Section", "Category"])
 
@@ -178,69 +194,75 @@ def generate_clean_menu_pdf():
 
         # ===== SECTION =====
         if current_section != section:
-
-            if y < 120:
+            if y < 140:
                 new_column()
-
-            c.setFont("DejaVu", 26)
-            c.drawCentredString(width / 2, y, str(section))
-
-            c.setLineWidth(2)
-            c.line(100, y - 10, width - 100, y - 10)
-
-            y -= 45
+            draw_section(str(section))
             current_section = section
 
         x = x_positions[column]
 
-        draw_category_header(x, y, category)
-        item_y = y - 50
+        y = draw_category_header(x, str(category))
+        block_top = y + 50
 
         for _, row in items.iterrows():
 
             name_lines = split_text(row.get("Dish name", ""), 28)
             desc_lines = split_text(row.get("Description", ""), 45)
 
-            item_height = (
-                len(name_lines) * 15 +
-                len(desc_lines) * 12 +
-                15
-            )
+            item_height = len(name_lines) * 15 + len(desc_lines) * 12 + 10
 
-            # перенос item
-            if item_y - item_height < 60:
+            if y - item_height < 60:
+                # закриваємо рамку
+                c.roundRect(
+                    x,
+                    y,
+                    column_width,
+                    block_top - y,
+                    12
+                )
+
                 new_column()
                 x = x_positions[column]
-                draw_category_header(x, y, category)
-                item_y = y - 50
+                y = draw_category_header(x, str(category))
+                block_top = y + 50
 
             price = str(row.get("Price", ""))
 
             # NAME
             c.setFont("DejaVu", 13)
             for line in name_lines:
-                c.drawString(x + 10, item_y, line)
-                item_y -= 15
+                c.drawString(x + 12, y, line)
+                y -= 15
 
             # PRICE
             c.drawRightString(
-                x + column_width - 10,
-                item_y + 15,
+                x + column_width - 12,
+                y + 15,
                 price
             )
 
             # DESCRIPTION
             c.setFont("DejaVu", 9)
             for line in desc_lines:
-                c.drawString(x + 10, item_y, line)
-                item_y -= 12
+                c.drawString(x + 12, y, line)
+                y -= 12
 
-            item_y -= 6
+            y -= 6
 
-        y = item_y - 25
+        # рамка в кінці category
+        c.roundRect(
+            x,
+            y,
+            column_width,
+            block_top - y,
+            12
+        )
+
+        y -= 30
 
     c.save()
     print("✔ CLEAN MENU GENERATED")
+
 
 
 
