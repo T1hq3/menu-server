@@ -157,7 +157,12 @@ def generate_clean_menu_pdf():
 
             c.setFont("DejaVu", 22)
             c.drawCentredString(width / 2, y, str(section))
-            y -= 35
+            
+            # декоративна лінія
+            c.setLineWidth(2)
+            c.line(100, y - 10, width - 100, y - 10)
+
+            y -= 45
             current_section = section
 
         x = x_positions[column]
@@ -220,9 +225,21 @@ def generate_clean_menu_pdf():
                     block_height,
                     12
                 )
+                
+                draw_category_header()
+                item_y = y - 50
 
                 c.setFillColorRGB(0.85, 0.85, 0.85)
-                c.rect(x, y - 35, column_width, 35, fill=1, stroke=0)
+                padding = 2
+
+                c.rect(
+                    x + padding,
+                    y - 35 + padding,
+                    column_width - padding * 2,
+                    35 - padding,
+                    fill=1,
+                    stroke=0
+                )
 
                 c.setFillColorRGB(0, 0, 0)
                 c.setFont("DejaVu", 18)
