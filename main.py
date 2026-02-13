@@ -26,6 +26,9 @@ PDF_FILE = f"{SAVE_PATH}/menu.pdf"
 
 def update_menu():
     print("Updating menu...")
+    
+    print("IDENTIFIER:", bool(IDENTIFIER))
+    print("PASSWORD:", bool(PASSWORD))
 
     if not IDENTIFIER or not PASSWORD:
         print("ENV variables missing")
