@@ -112,9 +112,6 @@ def split_text(text, max_len):
 # ======================
 # GENERATE PDF
 # ======================
-# ======================
-# GENERATE CLEAN MENU
-# ======================
 def generate_clean_menu_pdf():
 
     if not os.path.exists(EXCEL_FILE):
@@ -308,8 +305,6 @@ def generate_clean_menu_pdf():
 
     c.save()
     print("✔ DESIGN MENU GENERATED")
-
-
 # ======================
 # SCHEDULER
 # ======================
