@@ -24,7 +24,8 @@ PDF_FILE = f"{SAVE_PATH}/menu.pdf"
 # DOWNLOAD EXCEL
 # ======================
 
-def download_excel():
+def update_menu():
+    print("Updating menu...")
 
     if not IDENTIFIER or not PASSWORD:
         print("ENV variables missing")
@@ -272,7 +273,7 @@ def index():
     </body>
     </html>
     """)
-
+    
 @app.route("/download")
 def download_pdf():
 
@@ -293,8 +294,17 @@ def download_pdf():
 
 if __name__ == "__main__":
 
-    t = threading.Thread(target=download_excel, daemon=True)
+    def scheduler_loop():
+        update_menu()  # перший запуск одразу
+        schedule.every(30).minutes.do(update_menu)
+
+        while True:
+            schedule.run_pending()
+            time.sleep(5)
+
+    t = threading.Thread(target=scheduler_loop, daemon=True)
     t.start()
 
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
