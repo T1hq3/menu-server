@@ -225,7 +225,6 @@ def generate_menu_pdf():
     COLUMN_GAP = 20
     column_width = (usable_width - COLUMN_GAP) / 2
 
-    # ----- FRAMES -----
     frame_full = Frame(
         doc.leftMargin,
         doc.bottomMargin,
@@ -270,40 +269,43 @@ def generate_menu_pdf():
     )
 
     elements = []
+    first_section = True
 
-for section in SECTION_ORDER:
+    for section in SECTION_ORDER:
 
-    section_df = df[df["Section"] == section]
-    if section_df.empty:
-        continue
+        section_df = df[df["Section"] == section]
+        if section_df.empty:
+            continue
 
-    # ---- ЗМІНА TEMPLATE ДЛЯ HEADER ----
-    elements.append(PageBreak())
-    elements.append(NextPageTemplate("FullWidth"))
+        if not first_section:
+            elements.append(PageBreak())
+        else:
+            first_section = False
 
-    elements.append(Paragraph(f"<b>{section}</b>", section_style))
-    elements.append(HRFlowable(width="35%", thickness=1.4))
-    elements.append(Spacer(1, 40))
+        elements.append(NextPageTemplate("FullWidth"))
 
-    # ---- ПЕРЕМИКАЄМОСЬ НА КОЛОНКИ БЕЗ PageBreak ----
-    elements.append(NextPageTemplate("TwoColumns"))
+        elements.append(Paragraph(f"<b>{section}</b>", section_style))
+        elements.append(HRFlowable(width="35%", thickness=1.4))
+        elements.append(Spacer(1, 40))
 
-    for category, items in section_df.groupby("Category"):
+        elements.append(NextPageTemplate("TwoColumns"))
 
-        block = build_category_block(
-            category,
-            items,
-            column_width,
-            styles
-        )
+        for category, items in section_df.groupby("Category"):
 
-        elements.append(block)
-        elements.append(Spacer(1, 24))
+            block = build_category_block(
+                category,
+                items,
+                column_width,
+                styles
+            )
 
+            elements.append(block)
+            elements.append(Spacer(1, 24))
 
     doc.build(elements)
 
     print("✔ MENU PDF GENERATED")
+
 
 
 # ======================
