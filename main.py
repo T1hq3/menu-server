@@ -93,6 +93,58 @@ def download_excel():
     except Exception as e:
         print("Error:", e)
 
+from reportlab.platypus import Flowable
+from reportlab.lib import colors
+
+
+class DishRow(Flowable):
+
+    def __init__(self, name, desc, price, weight, width):
+        super().__init__()
+        self.name = name
+        self.desc = desc
+        self.price = price
+        self.weight = weight
+        self.width = width
+        self.height = 42
+
+    def wrap(self, availWidth, availHeight):
+        return self.width, self.height
+
+    def draw(self):
+
+        c = self.canv
+
+        # Назва
+        c.setFont("DejaVu", 11)
+        c.drawString(0, 28, self.name)
+
+        # Ціна справа
+        if self.price:
+            price_width = c.stringWidth(self.price, "DejaVu", 11)
+            c.drawString(self.width - price_width, 28, self.price)
+
+        # Пунктир
+        c.setDash(1, 2)
+        c.line(0, 24, self.width, 24)
+        c.setDash()
+
+        # Опис
+        c.setFont("DejaVu", 8)
+        c.setFillColor(colors.grey)
+
+        short_desc = self.desc[:90]
+        c.drawString(0, 12, short_desc)
+
+        # Вага справа
+        if self.weight:
+            weight_text = f"{self.weight}г"
+            weight_width = c.stringWidth(weight_text, "DejaVu", 8)
+            c.drawString(self.width - weight_width, 12, weight_text)
+
+        c.setFillColor(colors.black)
+
+
 
 # ======================
 # CATEGORY TABLE BUILDER
@@ -102,19 +154,21 @@ def build_category_table(category_name, items_df, frame_width, styles):
 
     data = []
 
+    # ===== HEADER =====
     header_style = ParagraphStyle(
         "CatHeader",
         parent=styles["Normal"],
         fontName="DejaVu",
-        fontSize=14,
-        spaceBefore=6,
-        spaceAfter=6,
+        fontSize=15,
+        spaceBefore=4,
+        spaceAfter=4,
     )
 
     header_para = Paragraph(f"<b>{category_name}</b>", header_style)
 
-    data.append([header_para, ""])
+    data.append([header_para])
 
+    # ===== DISH ROWS =====
     for _, row in items_df.iterrows():
 
         name = str(row["Dish name"]).strip()
@@ -125,40 +179,40 @@ def build_category_table(category_name, items_df, frame_width, styles):
         if price == "0":
             price = ""
 
-        left_html = f"<b>{name}</b>"
-        if desc and desc.lower() != "nan":
-            left_html += f"<br/><font size=9 color=grey>{desc}</font>"
+        dish = DishRow(
+            name=name,
+            desc=desc,
+            price=price,
+            weight=weight,
+            width=frame_width - 24
+        )
 
-        right_html = ""
-        if price:
-            right_html += f"<b>{price}</b>"
-        if weight and weight.lower() != "nan":
-            right_html += f"<br/><font size=8>{weight}г</font>"
+        data.append([dish])
 
-        left_para = Paragraph(left_html, styles["Normal"])
-        right_para = Paragraph(right_html, styles["Normal"])
-
-        data.append([left_para, right_para])
-
+    # ===== TABLE =====
     table = Table(
         data,
-        colWidths=[frame_width * 0.75, frame_width * 0.25],
+        colWidths=[frame_width],
         repeatRows=1
     )
 
     table.setStyle(TableStyle([
+        # рамка
         ('BOX', (0, 0), (-1, -1), 1, colors.black),
+
+        # сірий header
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EAEAEA")),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+
+        # padding
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
     ]))
 
     return table
-
 
 # ======================
 # PDF GENERATION
@@ -208,16 +262,19 @@ def generate_menu_pdf():
     doc.addPageTemplates(PageTemplate(id='TwoCol', frames=frames))
 
     styles = getSampleStyleSheet()
-    
+
     for style in styles.byName.values():
         style.fontName = "DejaVu"
 
+    # ===== ЦЕНТРАЛЬНИЙ ЗАГОЛОВОК РОЗДІЛУ =====
     section_style = ParagraphStyle(
-        'SectionStyle',
-        parent=styles['Heading1'],
+        'SectionCenter',
+        parent=styles['Normal'],
         fontName="DejaVu",
-        fontSize=22,
+        fontSize=26,
+        alignment=1,  # по центру
         spaceAfter=6,
+        spaceBefore=10
     )
 
     elements = []
@@ -228,10 +285,12 @@ def generate_menu_pdf():
         if section_df.empty:
             continue
 
-        elements.append(Paragraph(section, section_style))
-        elements.append(HRFlowable(width="100%", thickness=1.5))
-        elements.append(Spacer(1, 14))
+        # ===== Назва розділу по центру =====
+        elements.append(Paragraph(f"<b>{section}</b>", section_style))
+        elements.append(HRFlowable(width="40%", thickness=1.2))
+        elements.append(Spacer(1, 18))
 
+        # ===== Категорії =====
         for category, items in section_df.groupby("Category"):
 
             table = build_category_table(
@@ -242,9 +301,9 @@ def generate_menu_pdf():
             )
 
             elements.append(table)
-            elements.append(Spacer(1, 18))
+            elements.append(Spacer(1, 22))
 
-        elements.append(Spacer(1, 25))
+        elements.append(Spacer(1, 35))
 
     doc.build(elements)
 
