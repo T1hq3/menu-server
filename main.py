@@ -262,29 +262,6 @@ def generate_clean_menu_pdf():
     c.save()
     print("✔ CLEAN MENU GENERATED")
 
-
-        # ===== CLOSE CATEGORY FRAME =====
-        current_height = block_top - (y - CATEGORY_PADDING_BOTTOM)
-        if current_height < CATEGORY_HEADER_HEIGHT + MIN_CATEGORY_BODY_HEIGHT:
-            y -= (CATEGORY_HEADER_HEIGHT + MIN_CATEGORY_BODY_HEIGHT - current_height)
-
-        c.roundRect(
-            x,
-            y - CATEGORY_PADDING_BOTTOM,
-            column_width,
-            block_top - (y - CATEGORY_PADDING_BOTTOM),
-            CATEGORY_RADIUS
-        )
-
-        y -= CATEGORY_SPACING_AFTER
-
-    c.save()
-    print("✔ CLEAN MENU GENERATED")
-
-
-
-
-
 # ======================
 # SCHEDULER
 # ======================
