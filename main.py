@@ -45,10 +45,16 @@ def update_menu():
     })
 
     try:
-        login_res = session.post(LOGIN_URL, json={
-            "identifier": IDENTIFIER,
-            "password": PASSWORD
-        })
+       login_res = session.post(
+    LOGIN_URL,
+    json={
+        "identifier": IDENTIFIER,
+        "password": PASSWORD
+    },
+    timeout=15
+)
+
+print("Login status:", login_res.status_code)
 
         if login_res.status_code not in (200, 201):
             print("Login error:", login_res.text)
@@ -61,14 +67,18 @@ def update_menu():
 
         session.headers.update({"authorization": token})
 
-        export_res = session.get(EXPORT_URL)
+        export_res = session.get(EXPORT_URL, timeout=30)
+
+print("Export status:", export_res.status_code)
 
         if export_res.status_code == 200:
             with open(EXCEL_FILE, "wb") as f:
                 f.write(export_res.content)
 
             print("✔ Excel updated")
-            generate_menu_pdf()
+            generate_menu_pdf(
+                print("Generating PDF...")
+            )
         else:
             print("Download error:", export_res.text)
 
@@ -297,15 +307,16 @@ def download_pdf():
 
 if __name__ == "__main__":
 
-    def scheduler_loop():
-        update_menu()  # перший запуск одразу
-        schedule.every(30).minutes.do(update_menu)
-
+    def background_worker():
         while True:
-            schedule.run_pending()
-            time.sleep(5)
+            try:
+                update_menu()
+            except Exception as e:
+                print("Background error:", e)
 
-    t = threading.Thread(target=scheduler_loop, daemon=True)
+            time.sleep(1800)  # 30 хв
+
+    t = threading.Thread(target=background_worker, daemon=True)
     t.start()
 
     port = int(os.environ.get("PORT", 5000))
