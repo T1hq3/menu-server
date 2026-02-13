@@ -6,6 +6,11 @@ import threading
 import os
 import pandas as pd
 
+from reportlab.platypus import Flowable
+from reportlab.lib.utils import simpleSplit
+from reportlab.lib import colors
+
+
 from reportlab.platypus import (
     BaseDocTemplate, Frame, PageTemplate,
     Paragraph, Spacer, Table, TableStyle, HRFlowable
@@ -97,7 +102,7 @@ from reportlab.platypus import Flowable
 from reportlab.lib import colors
 
 
-class DishRow(Flowable):
+cclass DishRow(Flowable):
 
     def __init__(self, name, desc, price, weight, width):
         super().__init__()
@@ -106,45 +111,68 @@ class DishRow(Flowable):
         self.price = price
         self.weight = weight
         self.width = width
-        self.height = 42
+
+        self.name_font = 11
+        self.desc_font = 8
+
+        self.name_height = 14
+        self.desc_line_height = 10
 
     def wrap(self, availWidth, availHeight):
+
+        # перенос опису
+        self.desc_lines = simpleSplit(
+            self.desc,
+            "DejaVu",
+            self.desc_font,
+            self.width
+        )
+
+        self.height = (
+            self.name_height +
+            len(self.desc_lines) * self.desc_line_height +
+            6
+        )
+
         return self.width, self.height
 
     def draw(self):
 
         c = self.canv
 
-        # Назва
-        c.setFont("DejaVu", 11)
-        c.drawString(0, 28, self.name)
+        y = self.height
 
-        # Ціна справа
+        # Назва
+        c.setFont("DejaVu", self.name_font)
+        c.drawString(0, y - 14, self.name)
+
+        # Ціна
         if self.price:
-            price_width = c.stringWidth(self.price, "DejaVu", 11)
-            c.drawString(self.width - price_width, 28, self.price)
+            price_width = c.stringWidth(self.price, "DejaVu", self.name_font)
+            c.drawString(self.width - price_width, y - 14, self.price)
 
         # Пунктир
         c.setDash(1, 2)
-        c.line(0, 24, self.width, 24)
+        c.line(0, y - 18, self.width, y - 18)
         c.setDash()
 
         # Опис
-        c.setFont("DejaVu", 8)
+        c.setFont("DejaVu", self.desc_font)
         c.setFillColor(colors.grey)
 
-        short_desc = self.desc[:90]
-        c.drawString(0, 12, short_desc)
+        current_y = y - 28
 
-        # Вага справа
+        for line in self.desc_lines:
+            c.drawString(0, current_y, line)
+            current_y -= self.desc_line_height
+
+        # Вага
         if self.weight:
             weight_text = f"{self.weight}г"
-            weight_width = c.stringWidth(weight_text, "DejaVu", 8)
-            c.drawString(self.width - weight_width, 12, weight_text)
+            weight_width = c.stringWidth(weight_text, "DejaVu", self.desc_font)
+            c.drawString(self.width - weight_width, current_y + self.desc_line_height, weight_text)
 
         c.setFillColor(colors.black)
-
-
 
 # ======================
 # CATEGORY TABLE BUILDER
