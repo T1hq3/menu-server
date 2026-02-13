@@ -4,12 +4,22 @@ import schedule
 import time
 import threading
 import os
+from reportlab.platypus import Table, TableStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import simpleSplit
 import pandas as pd
+from reportlab.platypus import (
+    BaseDocTemplate, Frame, PageTemplate,
+    Paragraph, Spacer, KeepTogether
+)
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib import colors
+from reportlab.platypus.flowables import HRFlowable
+from reportlab.platypus import Flowable
+from reportlab.lib.units import mm
 
 app = Flask(__name__)
 
@@ -112,13 +122,16 @@ def split_text(text, max_len):
 # ======================
 # GENERATE PDF
 # ======================
+from reportlab.platypus import Table, TableStyle
+
+
 def generate_clean_menu_pdf():
 
     if not os.path.exists(EXCEL_FILE):
         print("Excel missing")
         return
 
-    print("Generating DESIGN MENU...")
+    print("Generating FINAL DESIGN MENU...")
 
     df = pd.read_excel(EXCEL_FILE)
     df = df[df["Section"].notna()]
@@ -136,52 +149,69 @@ def generate_clean_menu_pdf():
         "Винна карта",
     ]
 
-    c = canvas.Canvas(PDF_FILE, pagesize=A4)
-    width, height = A4
+    doc = BaseDocTemplate(
+        PDF_FILE,
+        pagesize=A4,
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=40,
+        bottomMargin=40
+    )
 
-    MARGIN = 40
-    COLUMN_GAP = 20
+    frame_width = (A4[0] - 80 - 20) / 2
+    frame_height = A4[1] - 80
 
-    usable_width = width - 2 * MARGIN
-    column_width = (usable_width - COLUMN_GAP) / 2
+    frames = [
+        Frame(30, 40, frame_width, frame_height, id='col1'),
+        Frame(30 + frame_width + 20, 40, frame_width, frame_height, id='col2')
+    ]
 
-    x_positions = [MARGIN, MARGIN + column_width + COLUMN_GAP]
+    doc.addPageTemplates(PageTemplate(id='TwoCol', frames=frames))
 
-    column = 0
-    y = height - MARGIN
+    styles = getSampleStyleSheet()
 
-    def new_page():
-        nonlocal column, y
-        c.showPage()
-        column = 0
-        y = height - MARGIN
+    section_style = ParagraphStyle(
+        'SectionStyle',
+        parent=styles['Heading1'],
+        fontName="DejaVu",
+        fontSize=22,
+        spaceAfter=6,
+    )
 
-    def new_column():
-        nonlocal column, y
-        column += 1
-        if column > 1:
-            new_page()
-        else:
-            y = height - MARGIN
+    category_style = ParagraphStyle(
+        'CategoryStyle',
+        parent=styles['Normal'],
+        fontName="DejaVu",
+        fontSize=15,
+        textColor=colors.black,
+        spaceBefore=4,
+        spaceAfter=6
+    )
 
-    def ensure_space(h):
-        nonlocal y
-        if y - h < MARGIN:
-            new_column()
+    dish_style = ParagraphStyle(
+        'DishStyle',
+        parent=styles['Normal'],
+        fontName="DejaVu",
+        fontSize=12,
+    )
 
-    def draw_section(title):
-        nonlocal y
-        c.setFont("DejaVu", 24)
-        c.drawString(x_positions[column], y, title)
-        y -= 10
-        c.setLineWidth(2)
-        c.line(
-            x_positions[column],
-            y,
-            x_positions[column] + column_width,
-            y
-        )
-        y -= 25
+    desc_style = ParagraphStyle(
+        'DescStyle',
+        parent=styles['Normal'],
+        fontName="DejaVu",
+        fontSize=9,
+        textColor=colors.grey,
+    )
+
+    weight_style = ParagraphStyle(
+        'WeightStyle',
+        parent=styles['Normal'],
+        fontName="DejaVu",
+        fontSize=8,
+        alignment=2
+    )
+
+    elements = []
 
     for section in SECTION_ORDER:
 
@@ -189,122 +219,71 @@ def generate_clean_menu_pdf():
         if section_df.empty:
             continue
 
-        ensure_space(80)
-        draw_section(section)
+        elements.append(Paragraph(section, section_style))
+        elements.append(HRFlowable(width="100%", thickness=1))
+        elements.append(Spacer(1, 10))
 
         for category, items in section_df.groupby("Category"):
 
-            header_height = 35
-            block_start_y = y
-
-            ensure_space(header_height + 20)
-
-            x = x_positions[column]
-
-            # HEADER BACKGROUND
-            c.setFillColorRGB(0.9, 0.9, 0.9)
-            c.roundRect(
-                x,
-                y - header_height,
-                column_width,
-                header_height,
-                8,
-                stroke=0,
-                fill=1
+            # CATEGORY HEADER TABLE (фон + рамка)
+            cat_table = Table(
+                [[Paragraph(f"<b>{category}</b>", category_style)]],
+                colWidths=[frame_width]
             )
 
-            c.setFillColorRGB(0, 0, 0)
-            c.setFont("DejaVu", 16)
-            c.drawString(x + 10, y - 22, str(category))
+            cat_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#EAEAEA")),
+                ('BOX', (0, 0), (-1, -1), 1, colors.black),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ]))
 
-            y -= header_height + 10
+            elements.append(cat_table)
+            elements.append(Spacer(1, 6))
 
             for _, row in items.iterrows():
 
-                name = str(row["Dish name"]).strip()
-                desc = str(row["Description"]).strip()
-                price = str(row["Price"]).strip()
-                weight = str(row["Weight, g"]).strip()
+                name = row["Dish name"]
+                desc = row["Description"]
+                price = str(row["Price"])
+                weight = str(row["Weight, g"])
 
                 if price == "0":
                     price = ""
 
-                name_lines = simpleSplit(name, "DejaVu", 12, column_width - 60)
-                desc_lines = simpleSplit(desc, "DejaVu", 9, column_width - 20)
-
-                block_height = (
-                    len(name_lines) * 15 +
-                    len(desc_lines) * 11 +
-                    20
+                # NAME + PRICE як 2 колонки
+                row_table = Table(
+                    [[
+                        Paragraph(name, dish_style),
+                        Paragraph(f"<b>{price}</b>", dish_style)
+                    ]],
+                    colWidths=[frame_width - 60, 60]
                 )
 
-                ensure_space(block_height)
+                row_table.setStyle(TableStyle([
+                    ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ]))
 
-                # NAME + PRICE
-                c.setFont("DejaVu", 12)
+                elements.append(row_table)
 
-                for i, line in enumerate(name_lines):
-                    c.drawString(x + 10, y, line)
-
-                    if i == 0 and price:
-                        c.setFont("DejaVu", 12)
-                        c.drawRightString(
-                            x + column_width - 10,
-                            y,
-                            price
-                        )
-                    y -= 15
-
-                # dotted line
-                if price:
-                    c.setDash(1, 2)
-                    c.line(
-                        x + 10,
-                        y + 12,
-                        x + column_width - 10,
-                        y + 12
-                    )
-                    c.setDash()
-
-                # DESCRIPTION
                 if desc and desc.lower() != "nan":
-                    c.setFillColorRGB(0.4, 0.4, 0.4)
-                    c.setFont("DejaVu", 9)
+                    elements.append(Paragraph(desc, desc_style))
 
-                    for line in desc_lines:
-                        c.drawString(x + 10, y, line)
-                        y -= 11
-
-                    c.setFillColorRGB(0, 0, 0)
-
-                # WEIGHT
                 if weight and weight.lower() != "nan":
-                    c.setFont("DejaVu", 8)
-                    c.drawRightString(
-                        x + column_width - 10,
-                        y,
-                        weight
-                    )
-                    y -= 12
+                    elements.append(Paragraph(f"{weight}г", weight_style))
 
-                y -= 5
+                elements.append(Spacer(1, 8))
 
-            # рамка категорії
-            block_height_total = block_start_y - y
-            c.roundRect(
-                x,
-                y,
-                column_width,
-                block_height_total,
-                8,
-                stroke=1,
-                fill=0
-            )
+            elements.append(Spacer(1, 14))
 
-            y -= 20
+        elements.append(Spacer(1, 20))
 
-    c.save()
-    print("✔ DESIGN MENU GENERATED")
+    doc.build(elements)
+
+    print("✔ FINAL DESIGN MENU GENERATED")
 # ======================
 # SCHEDULER
 # ======================
