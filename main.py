@@ -309,7 +309,7 @@ if __name__ == "__main__":
     def background_worker():
         while True:
             try:
-                download_excel()
+                update_menu()
             except Exception as e:
                 print("Background error:", e)
 
