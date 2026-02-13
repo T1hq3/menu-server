@@ -121,9 +121,11 @@ def generate_clean_menu_pdf():
         print("Excel missing")
         return
 
-    print("Generating CLEAN MENU...")
+    print("Generating DESIGN MENU...")
 
     df = pd.read_excel(EXCEL_FILE)
+    df = df[df["Section"].notna()]
+    df = df.fillna("")
 
     SECTION_ORDER = [
         "Сети",
@@ -137,8 +139,6 @@ def generate_clean_menu_pdf():
         "Винна карта",
     ]
 
-    df = df[df["Section"].notna()]
-
     c = canvas.Canvas(PDF_FILE, pagesize=A4)
     width, height = A4
 
@@ -148,10 +148,7 @@ def generate_clean_menu_pdf():
     usable_width = width - 2 * MARGIN
     column_width = (usable_width - COLUMN_GAP) / 2
 
-    x_positions = [
-        MARGIN,
-        MARGIN + column_width + COLUMN_GAP
-    ]
+    x_positions = [MARGIN, MARGIN + column_width + COLUMN_GAP]
 
     column = 0
     y = height - MARGIN
@@ -175,92 +172,143 @@ def generate_clean_menu_pdf():
         if y - h < MARGIN:
             new_column()
 
+    def draw_section(title):
+        nonlocal y
+        c.setFont("DejaVu", 24)
+        c.drawString(x_positions[column], y, title)
+        y -= 10
+        c.setLineWidth(2)
+        c.line(
+            x_positions[column],
+            y,
+            x_positions[column] + column_width,
+            y
+        )
+        y -= 25
+
     for section in SECTION_ORDER:
 
         section_df = df[df["Section"] == section]
         if section_df.empty:
             continue
 
-        ensure_space(60)
+        ensure_space(80)
+        draw_section(section)
 
-        # SECTION TITLE
-        c.setFont("DejaVu", 22)
-        c.drawString(x_positions[column], y, section)
-        y -= 30
+        for category, items in section_df.groupby("Category"):
 
-        grouped = section_df.groupby("Category")
+            header_height = 35
+            block_start_y = y
 
-        for category, items in grouped:
+            ensure_space(header_height + 20)
 
-            ensure_space(40)
+            x = x_positions[column]
 
-            # CATEGORY
+            # HEADER BACKGROUND
+            c.setFillColorRGB(0.9, 0.9, 0.9)
+            c.roundRect(
+                x,
+                y - header_height,
+                column_width,
+                header_height,
+                8,
+                stroke=0,
+                fill=1
+            )
+
+            c.setFillColorRGB(0, 0, 0)
             c.setFont("DejaVu", 16)
-            c.drawString(x_positions[column], y, str(category))
-            y -= 20
+            c.drawString(x + 10, y - 22, str(category))
+
+            y -= header_height + 10
 
             for _, row in items.iterrows():
 
-                name = str(row.get("Dish name", ""))
-                desc = str(row.get("Description", ""))
-                price = str(row.get("Price", ""))
-                weight = str(row.get("Weight, g", ""))
+                name = str(row["Dish name"]).strip()
+                desc = str(row["Description"]).strip()
+                price = str(row["Price"]).strip()
+                weight = str(row["Weight, g"]).strip()
+
+                if price == "0":
+                    price = ""
 
                 name_lines = simpleSplit(name, "DejaVu", 12, column_width - 60)
                 desc_lines = simpleSplit(desc, "DejaVu", 9, column_width - 20)
 
                 block_height = (
-                    len(name_lines) * 14 +
+                    len(name_lines) * 15 +
                     len(desc_lines) * 11 +
-                    25
+                    20
                 )
 
                 ensure_space(block_height)
 
                 # NAME + PRICE
                 c.setFont("DejaVu", 12)
+
                 for i, line in enumerate(name_lines):
-                    c.drawString(
-                        x_positions[column],
-                        y,
-                        line
-                    )
-                    if i == 0:
+                    c.drawString(x + 10, y, line)
+
+                    if i == 0 and price:
+                        c.setFont("DejaVu", 12)
                         c.drawRightString(
-                            x_positions[column] + column_width,
+                            x + column_width - 10,
                             y,
                             price
                         )
-                    y -= 14
+                    y -= 15
+
+                # dotted line
+                if price:
+                    c.setDash(1, 2)
+                    c.line(
+                        x + 10,
+                        y + 12,
+                        x + column_width - 10,
+                        y + 12
+                    )
+                    c.setDash()
 
                 # DESCRIPTION
-                c.setFont("DejaVu", 9)
-                for line in desc_lines:
-                    c.drawString(
-                        x_positions[column],
-                        y,
-                        line
-                    )
-                    y -= 11
+                if desc and desc.lower() != "nan":
+                    c.setFillColorRGB(0.4, 0.4, 0.4)
+                    c.setFont("DejaVu", 9)
+
+                    for line in desc_lines:
+                        c.drawString(x + 10, y, line)
+                        y -= 11
+
+                    c.setFillColorRGB(0, 0, 0)
 
                 # WEIGHT
-                if weight and weight != "nan":
+                if weight and weight.lower() != "nan":
                     c.setFont("DejaVu", 8)
                     c.drawRightString(
-                        x_positions[column] + column_width,
+                        x + column_width - 10,
                         y,
-                        f"{weight}г"
+                        weight
                     )
                     y -= 12
 
-                y -= 8
+                y -= 5
 
-            y -= 10
+            # рамка категорії
+            block_height_total = block_start_y - y
+            c.roundRect(
+                x,
+                y,
+                column_width,
+                block_height_total,
+                8,
+                stroke=1,
+                fill=0
+            )
 
-        y -= 20
+            y -= 20
 
     c.save()
-    print("✔ CLEAN MENU GENERATED")
+    print("✔ DESIGN MENU GENERATED")
+
 
 # ======================
 # SCHEDULER
