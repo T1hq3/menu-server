@@ -273,23 +273,32 @@ def generate_menu_pdf():
 
     for section in SECTION_ORDER:
 
-        section_df = df[df["Section"] == section]
-        if section_df.empty:
-            continue
+    section_df = df[df["Section"] == section]
+    if section_df.empty:
+        continue
 
-        # ===== FULL WIDTH PAGE =====
-        elements.append(NextPageTemplate("FullWidth"))
-        elements.append(PageBreak())
+    # ---- ЗМІНА TEMPLATE ДЛЯ HEADER ----
+    elements.append(PageBreak())
+    elements.append(NextPageTemplate("FullWidth"))
 
-        elements.append(Paragraph(f"<b>{section}</b>", section_style))
-        elements.append(HRFlowable(width="35%", thickness=1.4))
-        elements.append(Spacer(1, 30))
+    elements.append(Paragraph(f"<b>{section}</b>", section_style))
+    elements.append(HRFlowable(width="35%", thickness=1.4))
+    elements.append(Spacer(1, 40))
 
-        # ===== SWITCH TO COLUMNS =====
-        elements.append(NextPageTemplate("TwoColumns"))
-        elements.append(PageBreak())
+    # ---- ПЕРЕМИКАЄМОСЬ НА КОЛОНКИ БЕЗ PageBreak ----
+    elements.append(NextPageTemplate("TwoColumns"))
 
-        for category, items in section_df.groupby("Category"):
+    for category, items in section_df.groupby("Category"):
+
+        block = build_category_block(
+            category,
+            items,
+            column_width,
+            styles
+        )
+
+        elements.append(block)
+        elements.append(Spacer(1, 24))
 
             block = build_category_block(
                 category,
