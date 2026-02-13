@@ -125,204 +125,143 @@ def generate_clean_menu_pdf():
 
     df = pd.read_excel(EXCEL_FILE)
 
+    SECTION_ORDER = [
+        "Сети",
+        "Роли",
+        "Кухня",
+        "Ланчі 11:00-17:00",
+        "Коктейльна карта",
+        "Гарячі напої",
+        "Безалкогольний бар",
+        "Алкогольний бар",
+        "Винна карта",
+    ]
+
+    df = df[df["Section"].notna()]
+
     c = canvas.Canvas(PDF_FILE, pagesize=A4)
     width, height = A4
 
-    # ===== PAGE / COLUMNS =====
-    MARGIN_TOP = 50
-    MARGIN_BOTTOM = 60
+    MARGIN = 40
     COLUMN_GAP = 20
 
-    column_width = (width - COLUMN_GAP) / 2 - 40
-    x_positions = [30, width / 2 + 10]
+    usable_width = width - 2 * MARGIN
+    column_width = (usable_width - COLUMN_GAP) / 2
 
-    y = height - MARGIN_TOP
+    x_positions = [
+        MARGIN,
+        MARGIN + column_width + COLUMN_GAP
+    ]
+
     column = 0
-    current_section = None
+    y = height - MARGIN
 
-    # ===== SECTION =====
-    SECTION_SPACING_AFTER = 60
-
-    # ===== CATEGORY GEOMETRY =====
-    CATEGORY_HEADER_HEIGHT = 38
-    CATEGORY_RADIUS = 12
-    CATEGORY_PADDING_TOP = 12
-    CATEGORY_PADDING_BOTTOM = 14
-    CATEGORY_SPACING_AFTER = 24
-    MIN_CATEGORY_BODY_HEIGHT = 40
-
-    CONTENT_LEFT_PADDING = 12
-    CONTENT_RIGHT_PADDING = 12
-
-    # ===== HELPERS =====
     def new_page():
         nonlocal column, y
         c.showPage()
         column = 0
-        y = height - MARGIN_TOP
+        y = height - MARGIN
 
     def new_column():
         nonlocal column, y
         column += 1
         if column > 1:
             new_page()
-        y = height - MARGIN_TOP
+        else:
+            y = height - MARGIN
 
-    def ensure_space(min_height):
+    def ensure_space(h):
         nonlocal y
-        if y - min_height < MARGIN_BOTTOM:
+        if y - h < MARGIN:
             new_column()
 
-    def start_section():
-        nonlocal y, column
+    for section in SECTION_ORDER:
 
-        # мінімальна висота, яка потрібна section + 1 category
-        MIN_SECTION_HEIGHT = SECTION_SPACING_AFTER + 120
+        section_df = df[df["Section"] == section]
+        if section_df.empty:
+            continue
 
-        # якщо section не вміщається — нова сторінка
-        if y - MIN_SECTION_HEIGHT < MARGIN_BOTTOM:
-            c.showPage()
-            column = 0
-            y = height - MARGIN_TOP
-            return
-    
-        # якщо ми не на початку колонки — переходимо в нову колонку
-        if column != 0:
-            new_column()
+        ensure_space(60)
 
+        # SECTION TITLE
+        c.setFont("DejaVu", 22)
+        c.drawString(x_positions[column], y, section)
+        y -= 30
 
+        grouped = section_df.groupby("Category")
 
+        for category, items in grouped:
 
-    # ===== SECTION =====
-    def draw_section(title):
-        nonlocal y
-        c.setFont("DejaVu", 26)
-        c.drawCentredString(width / 2, y, title)
+            ensure_space(40)
 
-        c.setLineWidth(3)
-        c.line(80, y - 10, width - 80, y - 10)
+            # CATEGORY
+            c.setFont("DejaVu", 16)
+            c.drawString(x_positions[column], y, str(category))
+            y -= 20
 
-        y -= SECTION_SPACING_AFTER
+            for _, row in items.iterrows():
 
-    # ===== CATEGORY HEADER =====
-    def draw_category_header(x, title):
-        nonlocal y
+                name = str(row.get("Dish name", ""))
+                desc = str(row.get("Description", ""))
+                price = str(row.get("Price", ""))
+                weight = str(row.get("Weight, g", ""))
 
-        c.setLineWidth(1.5)
-        c.roundRect(
-            x,
-            y - CATEGORY_HEADER_HEIGHT,
-            column_width,
-            CATEGORY_HEADER_HEIGHT,
-            CATEGORY_RADIUS,
-            stroke=1,
-            fill=0
-        )
+                name_lines = simpleSplit(name, "DejaVu", 12, column_width - 60)
+                desc_lines = simpleSplit(desc, "DejaVu", 9, column_width - 20)
 
-        c.setFillColorRGB(0.9, 0.9, 0.9)
-        c.roundRect(
-            x + 2,
-            y - CATEGORY_HEADER_HEIGHT + 2,
-            column_width - 4,
-            CATEGORY_HEADER_HEIGHT - 4,
-            CATEGORY_RADIUS - 2,
-            stroke=0,
-            fill=1
-        )
-
-        c.setFillColorRGB(0, 0, 0)
-        c.setFont("DejaVu", 18)
-        c.drawString(
-            x + CONTENT_LEFT_PADDING,
-            y - 26,
-            title
-        )
-
-        y -= CATEGORY_HEADER_HEIGHT + CATEGORY_PADDING_TOP
-
-    grouped = df.groupby(["Section", "Category"])
-
-    for (section, category), items in grouped:
-
-        # ===== SECTION =====
-        if current_section != section:
-            start_section()
-            draw_section(str(section))
-            current_section = section
-
-        x = x_positions[column]
-
-        ensure_space(120)
-        draw_category_header(x, str(category))
-        block_top = y + CATEGORY_HEADER_HEIGHT + CATEGORY_PADDING_TOP
-
-        # ===== ITEMS =====
-        for _, row in items.iterrows():
-
-            name_lines = split_text(str(row.get("Dish name", "")), 28)
-            desc_lines = split_text(str(row.get("Description", "")), 45)
-            price = str(row.get("Price", ""))
-
-            item_height = (
-                len(name_lines) * 15 +
-                len(desc_lines) * 13 +
-                18
-            )
-
-            if y - item_height < MARGIN_BOTTOM:
-                # close current category frame
-                current_height = block_top - (y - CATEGORY_PADDING_BOTTOM)
-                if current_height < CATEGORY_HEADER_HEIGHT + MIN_CATEGORY_BODY_HEIGHT:
-                    y -= (CATEGORY_HEADER_HEIGHT + MIN_CATEGORY_BODY_HEIGHT - current_height)
-
-                c.roundRect(
-                    x,
-                    y - CATEGORY_PADDING_BOTTOM,
-                    column_width,
-                    block_top - (y - CATEGORY_PADDING_BOTTOM),
-                    CATEGORY_RADIUS
+                block_height = (
+                    len(name_lines) * 14 +
+                    len(desc_lines) * 11 +
+                    25
                 )
 
-                new_column()
-                x = x_positions[column]
-                draw_category_header(x, str(category))
-                block_top = y + CATEGORY_HEADER_HEIGHT + CATEGORY_PADDING_TOP
+                ensure_space(block_height)
 
-            # --- NAME + PRICE
-            c.setFont("DejaVu", 13)
-            c.drawString(
-                x + CONTENT_LEFT_PADDING,
-                y,
-                name_lines[0]
-            )
+                # NAME + PRICE
+                c.setFont("DejaVu", 12)
+                for i, line in enumerate(name_lines):
+                    c.drawString(
+                        x_positions[column],
+                        y,
+                        line
+                    )
+                    if i == 0:
+                        c.drawRightString(
+                            x_positions[column] + column_width,
+                            y,
+                            price
+                        )
+                    y -= 14
 
-            c.drawRightString(
-                x + column_width - CONTENT_RIGHT_PADDING,
-                y,
-                price
-            )
+                # DESCRIPTION
+                c.setFont("DejaVu", 9)
+                for line in desc_lines:
+                    c.drawString(
+                        x_positions[column],
+                        y,
+                        line
+                    )
+                    y -= 11
 
-            y -= 15
+                # WEIGHT
+                if weight and weight != "nan":
+                    c.setFont("DejaVu", 8)
+                    c.drawRightString(
+                        x_positions[column] + column_width,
+                        y,
+                        f"{weight}г"
+                    )
+                    y -= 12
 
-            for line in name_lines[1:]:
-                c.drawString(
-                    x + CONTENT_LEFT_PADDING,
-                    y,
-                    line
-                )
-                y -= 15
+                y -= 8
 
-            # --- DESCRIPTION
-            c.setFont("DejaVu", 9)
-            for line in desc_lines:
-                c.drawString(
-                    x + CONTENT_LEFT_PADDING,
-                    y,
-                    line
-                )
-                y -= 13
+            y -= 10
 
-            y -= 8
+        y -= 20
+
+    c.save()
+    print("✔ CLEAN MENU GENERATED")
+
 
         # ===== CLOSE CATEGORY FRAME =====
         current_height = block_top - (y - CATEGORY_PADDING_BOTTOM)
