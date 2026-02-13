@@ -1,4 +1,4 @@
-from flask import Flask, send_file
+from flask import Flask
 import requests
 import schedule
 import time
@@ -8,16 +8,12 @@ import pandas as pd
 
 from reportlab.platypus import (
     BaseDocTemplate, Frame, PageTemplate,
-    Paragraph, Spacer, KeepTogether,
-    Table, TableStyle
+    Paragraph, Spacer, Table, TableStyle, HRFlowable
 )
-from reportlab.platypus.flowables import HRFlowable, Flowable
 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.utils import simpleSplit
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
@@ -28,6 +24,7 @@ app = Flask(__name__)
 # ======================
 # CONFIG
 # ======================
+
 IDENTIFIER = os.getenv("IDENTIFIER")
 PASSWORD = os.getenv("PASSWORD")
 
@@ -39,13 +36,15 @@ EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
 PDF_FILE = f"{SAVE_PATH}/menu.pdf"
 
 FONT_PATH = "DejaVuSans.ttf"
-
 pdfmetrics.registerFont(TTFont("DejaVu", FONT_PATH))
+
 
 # ======================
 # DOWNLOAD EXCEL
 # ======================
+
 def download_excel():
+
     print("Downloading Excel...")
 
     if not IDENTIFIER or not PASSWORD:
@@ -63,12 +62,10 @@ def download_excel():
     })
 
     try:
-        login_payload = {
+        login_res = session.post(LOGIN_URL, json={
             "identifier": IDENTIFIER,
             "password": PASSWORD
-        }
-
-        login_res = session.post(LOGIN_URL, json=login_payload)
+        })
 
         if login_res.status_code not in (200, 201):
             print("Login error:", login_res.text)
@@ -84,14 +81,11 @@ def download_excel():
         export_res = session.get(EXPORT_URL)
 
         if export_res.status_code == 200:
-
             with open(EXCEL_FILE, "wb") as f:
                 f.write(export_res.content)
 
             print("✔ Excel updated")
-
-            generate_clean_menu_pdf() 
-
+            generate_menu_pdf()
         else:
             print("Download error:", export_res.text)
 
@@ -99,46 +93,27 @@ def download_excel():
         print("Error:", e)
 
 
-def split_text(text, max_len):
-    if not text:
-        return []
-
-    words = str(text).split()
-    lines = []
-    current = ""
-
-    for word in words:
-        if len(current + " " + word) <= max_len:
-            current += " " + word if current else word
-        else:
-            lines.append(current)
-            current = word
-
-    if current:
-        lines.append(current)
-
-    return lines
+# ======================
+# CATEGORY TABLE BUILDER
+# ======================
 
 def build_category_table(category_name, items_df, frame_width, styles):
 
     data = []
 
-    # ===== HEADER ROW =====
-    header_para = Paragraph(
-        f"<b>{category_name}</b>",
-        ParagraphStyle(
-            "CatHeader",
-            parent=styles["Normal"],
-            fontName="DejaVu",
-            fontSize=14,
-            spaceBefore=6,
-            spaceAfter=6,
-        )
+    header_style = ParagraphStyle(
+        "CatHeader",
+        parent=styles["Normal"],
+        fontName="DejaVu",
+        fontSize=14,
+        spaceBefore=6,
+        spaceAfter=6,
     )
+
+    header_para = Paragraph(f"<b>{category_name}</b>", header_style)
 
     data.append([header_para, ""])
 
-    # ===== DISH ROWS =====
     for _, row in items_df.iterrows():
 
         name = str(row["Dish name"]).strip()
@@ -166,39 +141,35 @@ def build_category_table(category_name, items_df, frame_width, styles):
 
     table = Table(
         data,
-        colWidths=[frame_width - 70, 60],
-        repeatRows=1  # 🔥 МАГІЯ
+        colWidths=[frame_width * 0.75, frame_width * 0.25],
+        repeatRows=1
     )
 
     table.setStyle(TableStyle([
-
-        # Rounded-like card
-        ('BOX', (0,0), (-1,-1), 1, colors.black),
-
-        # Header background
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#EAEAEA")),
-
-        # Padding
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('ALIGN', (1,1), (1,-1), 'RIGHT'),
-
+        ('BOX', (0, 0), (-1, -1), 1, colors.black),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EAEAEA")),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
     ]))
 
     return table
 
-            
-def generate_clean_menu_pdf():
+
+# ======================
+# PDF GENERATION
+# ======================
+
+def generate_menu_pdf():
 
     if not os.path.exists(EXCEL_FILE):
         print("Excel missing")
         return
 
-    print("Generating FINAL DESIGN MENU...")
+    print("Generating MENU PDF...")
 
     df = pd.read_excel(EXCEL_FILE)
     df = df[df["Section"].notna()]
@@ -245,31 +216,6 @@ def generate_clean_menu_pdf():
         spaceAfter=6,
     )
 
-    dish_style = ParagraphStyle(
-        'DishStyle',
-        parent=styles['Normal'],
-        fontName="DejaVu",
-        fontSize=12,
-        leading=14
-    )
-
-    desc_style = ParagraphStyle(
-        'DescStyle',
-        parent=styles['Normal'],
-        fontName="DejaVu",
-        fontSize=9,
-        textColor=colors.grey,
-        leading=11
-    )
-
-    weight_style = ParagraphStyle(
-        'WeightStyle',
-        parent=styles['Normal'],
-        fontName="DejaVu",
-        fontSize=8,
-        alignment=2
-    )
-
     elements = []
 
     for section in SECTION_ORDER:
@@ -284,64 +230,27 @@ def generate_clean_menu_pdf():
 
         for category, items in section_df.groupby("Category"):
 
-            item_flowables = []
+            table = build_category_table(
+                category,
+                items,
+                frame_width,
+                styles
+            )
 
-            for _, row in items.iterrows():
-
-                name = str(row["Dish name"]).strip()
-                desc = str(row["Description"]).strip()
-                price = str(row["Price"]).strip()
-                weight = str(row["Weight, g"]).strip()
-
-                if price == "0":
-                    price = ""
-
-                # Ліва частина
-                left_html = f"<b>{name}</b>"
-
-                if desc and desc.lower() != "nan":
-                    left_html += f"<br/><font size=9 color=grey>{desc}</font>"
-
-                # Права частина
-                right_html = ""
-
-                if price:
-                    right_html += f"<b>{price}</b>"
-
-                if weight and weight.lower() != "nan":
-                    right_html += f"<br/><font size=8>{weight}г</font>"
-
-                row_table = Table(
-                    [[
-                        Paragraph(left_html, dish_style),
-                        Paragraph(right_html, dish_style)
-                    ]],
-                    colWidths=[frame_width - 70, 60]
-                )
-
-                row_table.setStyle(TableStyle([
-                    ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 0),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-                    ('TOPPADDING', (0, 0), (-1, -1), 0),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-                ]))
-
-                item_flowables.append(row_table)
-
-            elements.append(CategoryCard(category, item_flowables, frame_width, styles))
-            elements.append(Spacer(1, 20))
+            elements.append(table)
+            elements.append(Spacer(1, 18))
 
         elements.append(Spacer(1, 25))
 
     doc.build(elements)
 
-    print("✔ FINAL DESIGN MENU GENERATED")
+    print("✔ MENU PDF GENERATED")
+
 
 # ======================
 # SCHEDULER
 # ======================
+
 def scheduler_loop():
     schedule.every(30).minutes.do(download_excel)
     download_excel()
@@ -349,9 +258,12 @@ def scheduler_loop():
     while True:
         schedule.run_pending()
         time.sleep(10)
+
+
 # ======================
 # START SERVER
 # ======================
+
 if __name__ == "__main__":
 
     t = threading.Thread(target=scheduler_loop, daemon=True)
