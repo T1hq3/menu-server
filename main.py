@@ -213,14 +213,6 @@ def build_category_table(category_name, items_df, frame_width, styles):
         if price == "0":
             price = ""
 
-        dish = DishRow(
-            name=name,
-            desc=desc,
-            price=price,
-            weight=weight,
-            width=frame_width - 24
-        )
-
         data.append([dish])
 
     # ===== TABLE =====
