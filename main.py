@@ -208,6 +208,9 @@ def generate_menu_pdf():
     doc.addPageTemplates(PageTemplate(id='TwoCol', frames=frames))
 
     styles = getSampleStyleSheet()
+    
+    for style in styles.byName.values():
+    style.fontName = "DejaVu"
 
     section_style = ParagraphStyle(
         'SectionStyle',
