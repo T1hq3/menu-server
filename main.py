@@ -268,7 +268,16 @@ def generate_clean_menu_pdf():
 
     print("✔ FINAL DESIGN MENU GENERATED")
 
+# ======================
+# SCHEDULER
+# ======================
+def scheduler_loop():
+    schedule.every(30).minutes.do(download_excel)
+    download_excel()
 
+    while True:
+        schedule.run_pending()
+        time.sleep(10)
 # ======================
 # START SERVER
 # ======================
