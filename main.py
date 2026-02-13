@@ -97,68 +97,91 @@ def build_html(df):
     <style>
 
     @page {
-        size: A4;
-        margin: 30px 40px;
-    }
+    size: A4;
+    margin: 25px 35px;
+}
 
-    body {
-        font-family: DejaVu Sans, sans-serif;
-    }
+body {
+    font-family: DejaVu Sans, sans-serif;
+}
 
-    .section {
-        page-break-before: always;
-    }
+.section {
+    page-break-before: always;
+}
 
-    .section:first-child {
-        page-break-before: auto;
-    }
+.section:first-child {
+    page-break-before: auto;
+}
 
-    h1 {
-        text-align: center;
-        font-size: 28px;
-        margin-bottom: 20px;
-    }
+h1 {
+    text-align: center;
+    font-size: 28px;
+    margin-bottom: 25px;
+    font-weight: 700;
+}
 
-    .columns {
-        column-count: 2;
-        column-gap: 40px;
-    }
+.columns {
+    column-count: 2;
+    column-gap: 35px;
+}
 
-    .category {
-        break-inside: avoid;
-        margin-bottom: 25px;
-    }
+/* ===== CATEGORY CARD ===== */
 
-    .cat-header {
-        background: #f2f2f2;
-        padding: 8px 12px;
-        border: 1px solid #bbb;
-        font-weight: bold;
-        margin-bottom: 10px;
-    }
+.category {
+    break-inside: avoid;
+    margin-bottom: 20px;
+    border: 2px solid #333;
+    border-radius: 10px;
+    padding: 14px 16px;
+}
 
-    .item {
-        margin-bottom: 10px;
-    }
+/* ===== CATEGORY TITLE ===== */
 
-    .item-top {
-        display: flex;
-        justify-content: space-between;
-        border-bottom: 1px dotted #999;
-        font-weight: bold;
-    }
+.cat-header {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
 
-    .desc {
-        font-size: 11px;
-        color: #666;
-        margin-top: 2px;
-    }
+/* ===== ITEM ===== */
 
-    .weight {
-        font-size: 10px;
-        color: #888;
-    }
+.item {
+    margin-bottom: 8px;
+}
 
+/* name + price row */
+.item-top {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dotted #777;
+    padding-bottom: 2px;
+}
+
+/* dish name */
+.item-top span:first-child {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+/* price */
+.item-top span:last-child {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+/* description */
+.desc {
+    font-size: 10px;
+    color: #444;
+    margin-top: 2px;
+    line-height: 1.2;
+}
+
+/* weight */
+.weight {
+    font-size: 9px;
+    color: #666;
+}
     </style>
     </head>
     <body>
