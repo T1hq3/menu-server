@@ -309,11 +309,11 @@ if __name__ == "__main__":
     def background_worker():
         while True:
             try:
-                update_menu()
+                download_excel()
             except Exception as e:
                 print("Background error:", e)
 
-            time.sleep(1800)  # 30 хв
+            time.sleep(1800)  # 30 хв (1800 секунд)
 
     t = threading.Thread(target=background_worker, daemon=True)
     t.start()
