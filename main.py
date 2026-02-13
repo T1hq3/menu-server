@@ -303,6 +303,7 @@ def index():
 
 
 @app.route("/download")
+@app.route("/download")
 def download_pdf():
 
     if not os.path.exists(PDF_FILE):
@@ -312,7 +313,8 @@ def download_pdf():
         PDF_FILE,
         mimetype="application/pdf",
         as_attachment=True,
-        download_name=
+        download_name="menu.pdf"
+    )
 # ======================
 # START SERVER
 # ======================
