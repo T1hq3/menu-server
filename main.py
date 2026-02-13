@@ -26,7 +26,6 @@ PDF_FILE = f"{SAVE_PATH}/menu.pdf"
 
 def update_menu():
     print("Updating menu...")
-    
     print("IDENTIFIER:", bool(IDENTIFIER))
     print("PASSWORD:", bool(PASSWORD))
 
@@ -45,16 +44,17 @@ def update_menu():
     })
 
     try:
-       login_res = session.post(
-    LOGIN_URL,
-    json={
-        "identifier": IDENTIFIER,
-        "password": PASSWORD
-    },
-    timeout=15
-)
+        # LOGIN
+        login_res = session.post(
+            LOGIN_URL,
+            json={
+                "identifier": IDENTIFIER,
+                "password": PASSWORD
+            },
+            timeout=15
+        )
 
-print("Login status:", login_res.status_code)
+        print("Login status:", login_res.status_code)
 
         if login_res.status_code not in (200, 201):
             print("Login error:", login_res.text)
@@ -67,23 +67,22 @@ print("Login status:", login_res.status_code)
 
         session.headers.update({"authorization": token})
 
+        # EXPORT
         export_res = session.get(EXPORT_URL, timeout=30)
 
-print("Export status:", export_res.status_code)
+        print("Export status:", export_res.status_code)
 
         if export_res.status_code == 200:
             with open(EXCEL_FILE, "wb") as f:
                 f.write(export_res.content)
 
             print("✔ Excel updated")
-            generate_menu_pdf(
-                print("Generating PDF...")
-            )
+            generate_menu_pdf()
         else:
             print("Download error:", export_res.text)
 
     except Exception as e:
-        print("Error:", e)
+        print("Error in update_menu:", e)
 
 
 # ======================
