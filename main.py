@@ -271,7 +271,7 @@ def generate_menu_pdf():
 
     elements = []
 
-    for section in SECTION_ORDER:
+for section in SECTION_ORDER:
 
     section_df = df[df["Section"] == section]
     if section_df.empty:
@@ -300,15 +300,6 @@ def generate_menu_pdf():
         elements.append(block)
         elements.append(Spacer(1, 24))
 
-            block = build_category_block(
-                category,
-                items,
-                column_width,
-                styles
-            )
-
-            elements.append(block)
-            elements.append(Spacer(1, 24))
 
     doc.build(elements)
 
