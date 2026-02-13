@@ -5,23 +5,7 @@ import time
 import threading
 import os
 import pandas as pd
-
-from reportlab.platypus import (
-    BaseDocTemplate, Frame, PageTemplate,
-    Paragraph, Spacer, Table, TableStyle,
-    NextPageTemplate, PageBreak, KeepTogether, HRFlowable
-)
-
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib import colors
-
-
-# ======================
-# FLASK
-# ======================
+from weasyprint import HTML
 
 app = Flask(__name__)
 
@@ -34,9 +18,6 @@ EXPORT_URL = "https://sunrise.choiceqr.com/api/export/xlsx"
 SAVE_PATH = "./exports"
 EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
 PDF_FILE = f"{SAVE_PATH}/menu.pdf"
-
-FONT_PATH = "DejaVuSans.ttf"
-pdfmetrics.registerFont(TTFont("DejaVu", FONT_PATH))
 
 
 # ======================
@@ -92,95 +73,145 @@ def download_excel():
 
 
 # ======================
-# CATEGORY BLOCK
+# HTML BUILDER
 # ======================
 
-def build_category_block(category_name, items_df, column_width, styles):
+def build_html(df):
 
-    elements = []
+    SECTION_ORDER = [
+        "Сети",
+        "Роли",
+        "Кухня",
+        "Ланчі 11:00-17:00",
+        "Коктейльна карта",
+        "Гарячі напої",
+        "Безалкогольний бар",
+        "Алкогольний бар",
+        "Винна карта",
+    ]
 
-    # ----- CATEGORY HEADER -----
-    header_style = ParagraphStyle(
-        "CatHeader",
-        parent=styles["Normal"],
-        fontName="DejaVu",
-        fontSize=15,
-        spaceBefore=6,
-        spaceAfter=6,
-    )
+    html = """
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
 
-    header_table = Table(
-        [[Paragraph(f"<b>{category_name}</b>", header_style)]],
-        colWidths=[column_width]
-    )
+    @page {
+        size: A4;
+        margin: 30px 40px;
+    }
 
-    header_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F1F1F1")),
-        ('BOX', (0,0), (-1,-1), 0.8, colors.grey),
-        ('LEFTPADDING', (0,0), (-1,-1), 10),
-        ('RIGHTPADDING', (0,0), (-1,-1), 10),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-    ]))
+    body {
+        font-family: DejaVu Sans, sans-serif;
+    }
 
-    elements.append(header_table)
-    elements.append(Spacer(1, 14))
+    .section {
+        page-break-before: always;
+    }
 
-    # ----- STYLES -----
-    name_style = ParagraphStyle(
-        "DishName",
-        parent=styles["Normal"],
-        fontName="DejaVu",
-        fontSize=11,
-        leading=14
-    )
+    .section:first-child {
+        page-break-before: auto;
+    }
 
-    desc_style = ParagraphStyle(
-        "DishDesc",
-        parent=styles["Normal"],
-        fontName="DejaVu",
-        fontSize=8,
-        textColor=colors.grey,
-        leading=10
-    )
+    h1 {
+        text-align: center;
+        font-size: 28px;
+        margin-bottom: 20px;
+    }
 
-    for _, row in items_df.iterrows():
+    .columns {
+        column-count: 2;
+        column-gap: 40px;
+    }
 
-        name = str(row.get("Dish name", "")).strip()
-        desc = str(row.get("Description", "")).strip()
-        price = str(row.get("Price", "")).strip()
-        weight = str(row.get("Weight, g", "")).strip()
+    .category {
+        break-inside: avoid;
+        margin-bottom: 25px;
+    }
 
-        if price == "0":
-            price = ""
+    .cat-header {
+        background: #f2f2f2;
+        padding: 8px 12px;
+        border: 1px solid #bbb;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
 
-        # ----- NAME + PRICE -----
-        item_table = Table(
-            [[
-                Paragraph(f"<b>{name}</b>", name_style),
-                Paragraph(f"<b>{price}</b>", name_style)
-            ]],
-            colWidths=[column_width * 0.75, column_width * 0.25]
-        )
+    .item {
+        margin-bottom: 10px;
+    }
 
-        item_table.setStyle(TableStyle([
-            ('ALIGN', (1,0), (1,0), 'RIGHT'),
-            ('LEFTPADDING', (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 0),
-        ]))
+    .item-top {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px dotted #999;
+        font-weight: bold;
+    }
 
-        elements.append(item_table)
+    .desc {
+        font-size: 11px;
+        color: #666;
+        margin-top: 2px;
+    }
 
-        # ----- DESCRIPTION -----
-        if weight and weight.lower() != "nan":
-            desc += f"   <b>{weight}г</b>"
+    .weight {
+        font-size: 10px;
+        color: #888;
+    }
 
-        if desc:
-            elements.append(Paragraph(desc, desc_style))
+    </style>
+    </head>
+    <body>
+    """
 
-        elements.append(Spacer(1, 12))
+    for section in SECTION_ORDER:
 
-    return KeepTogether(elements)
+        section_df = df[df["Section"] == section]
+        if section_df.empty:
+            continue
+
+        html += f'<div class="section">'
+        html += f'<h1>{section}</h1>'
+        html += '<div class="columns">'
+
+        for category, items in section_df.groupby("Category"):
+
+            html += f'<div class="category">'
+            html += f'<div class="cat-header">{category}</div>'
+
+            for _, row in items.iterrows():
+
+                name = str(row.get("Dish name", "")).strip()
+                desc = str(row.get("Description", "")).strip()
+                price = str(row.get("Price", "")).strip()
+                weight = str(row.get("Weight, g", "")).strip()
+
+                if price == "0":
+                    price = ""
+
+                html += '<div class="item">'
+                html += f'''
+                    <div class="item-top">
+                        <span>{name}</span>
+                        <span>{price}</span>
+                    </div>
+                '''
+
+                if desc:
+                    html += f'<div class="desc">{desc}</div>'
+
+                if weight and weight.lower() != "nan":
+                    html += f'<div class="weight">{weight} г</div>'
+
+                html += '</div>'
+
+            html += '</div>'
+
+        html += '</div></div>'
+
+    html += "</body></html>"
+
+    return html
 
 
 # ======================
@@ -197,115 +228,11 @@ def generate_menu_pdf():
     df = df[df["Section"].notna()]
     df = df.fillna("")
 
-    SECTION_ORDER = [
-        "Сети",
-        "Роли",
-        "Кухня",
-        "Ланчі 11:00-17:00",
-        "Коктейльна карта",
-        "Гарячі напої",
-        "Безалкогольний бар",
-        "Алкогольний бар",
-        "Винна карта",
-    ]
+    html = build_html(df)
 
-    doc = BaseDocTemplate(
-        PDF_FILE,
-        pagesize=A4,
-        rightMargin=30,
-        leftMargin=30,
-        topMargin=40,
-        bottomMargin=40
-    )
-
-    PAGE_WIDTH, PAGE_HEIGHT = A4
-    usable_width = PAGE_WIDTH - doc.leftMargin - doc.rightMargin
-    usable_height = PAGE_HEIGHT - doc.topMargin - doc.bottomMargin
-
-    COLUMN_GAP = 20
-    column_width = (usable_width - COLUMN_GAP) / 2
-
-    frame_full = Frame(
-        doc.leftMargin,
-        doc.bottomMargin,
-        usable_width,
-        usable_height,
-        id="full"
-    )
-
-    frame_left = Frame(
-        doc.leftMargin,
-        doc.bottomMargin,
-        column_width,
-        usable_height,
-        id="left"
-    )
-
-    frame_right = Frame(
-        doc.leftMargin + column_width + COLUMN_GAP,
-        doc.bottomMargin,
-        column_width,
-        usable_height,
-        id="right"
-    )
-
-    template_full = PageTemplate(id="FullWidth", frames=[frame_full])
-    template_columns = PageTemplate(id="TwoColumns", frames=[frame_left, frame_right])
-
-    doc.addPageTemplates([template_full, template_columns])
-
-    styles = getSampleStyleSheet()
-    for style in styles.byName.values():
-        style.fontName = "DejaVu"
-
-    section_style = ParagraphStyle(
-        "SectionCenter",
-        parent=styles["Normal"],
-        fontName="DejaVu",
-        fontSize=26,
-        alignment=1,
-        spaceAfter=10,
-        spaceBefore=10
-    )
-
-    elements = []
-    first_section = True
-
-    for section in SECTION_ORDER:
-
-        section_df = df[df["Section"] == section]
-        if section_df.empty:
-            continue
-
-        if not first_section:
-            elements.append(PageBreak())
-        else:
-            first_section = False
-
-        elements.append(NextPageTemplate("FullWidth"))
-
-        elements.append(Paragraph(f"<b>{section}</b>", section_style))
-        elements.append(HRFlowable(width="35%", thickness=1.4))
-        elements.append(Spacer(1, 40))
-
-        elements.append(NextPageTemplate("TwoColumns"))
-
-        for category, items in section_df.groupby("Category"):
-
-            block = build_category_block(
-                category,
-                items,
-                column_width,
-                styles
-            )
-
-            elements.append(block)
-            elements.append(Spacer(1, 24))
-
-    doc.build(elements)
+    HTML(string=html).write_pdf(PDF_FILE)
 
     print("✔ MENU PDF GENERATED")
-
 
 
 # ======================
