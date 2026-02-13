@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, send_file, render_template_string
 import requests
 import schedule
 import time
@@ -6,14 +6,10 @@ import threading
 import os
 import pandas as pd
 
-from reportlab.platypus import Flowable
-from reportlab.lib.utils import simpleSplit
-from reportlab.lib import colors
-
-
 from reportlab.platypus import (
     BaseDocTemplate, Frame, PageTemplate,
-    Paragraph, Spacer, Table, TableStyle, HRFlowable
+    Paragraph, Spacer, Table, TableStyle,
+    NextPageTemplate, PageBreak, KeepTogether, HRFlowable
 )
 
 from reportlab.pdfbase import pdfmetrics
@@ -21,15 +17,13 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib import colors
-from reportlab.lib.units import mm
-from flask import send_file, render_template_string
 
+
+# ======================
+# FLASK
+# ======================
 
 app = Flask(__name__)
-
-# ======================
-# CONFIG
-# ======================
 
 IDENTIFIER = os.getenv("IDENTIFIER")
 PASSWORD = os.getenv("PASSWORD")
@@ -50,8 +44,6 @@ pdfmetrics.registerFont(TTFont("DejaVu", FONT_PATH))
 # ======================
 
 def download_excel():
-
-    print("Downloading Excel...")
 
     if not IDENTIFIER or not PASSWORD:
         print("ENV variables missing")
@@ -98,28 +90,43 @@ def download_excel():
     except Exception as e:
         print("Error:", e)
 
-from reportlab.platypus import Flowable
-from reportlab.lib import colors
 
+# ======================
+# CATEGORY BLOCK
+# ======================
 
-def build_category_table(category_name, items_df, frame_width, styles):
+def build_category_block(category_name, items_df, column_width, styles):
 
-    data = []
+    elements = []
 
-    # ===== HEADER =====
+    # ----- CATEGORY HEADER -----
     header_style = ParagraphStyle(
         "CatHeader",
         parent=styles["Normal"],
         fontName="DejaVu",
         fontSize=15,
-        spaceBefore=4,
-        spaceAfter=4,
+        spaceBefore=6,
+        spaceAfter=6,
     )
 
-    header_para = Paragraph(f"<b>{category_name}</b>", header_style)
-    data.append([header_para])
+    header_table = Table(
+        [[Paragraph(f"<b>{category_name}</b>", header_style)]],
+        colWidths=[column_width]
+    )
 
-    # ===== DISH STYLE =====
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#F1F1F1")),
+        ('BOX', (0,0), (-1,-1), 0.8, colors.grey),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+    ]))
+
+    elements.append(header_table)
+    elements.append(Spacer(1, 14))
+
+    # ----- STYLES -----
     name_style = ParagraphStyle(
         "DishName",
         parent=styles["Normal"],
@@ -139,46 +146,42 @@ def build_category_table(category_name, items_df, frame_width, styles):
 
     for _, row in items_df.iterrows():
 
-        name = str(row["Dish name"]).strip()
-        desc = str(row["Description"]).strip()
-        price = str(row["Price"]).strip()
-        weight = str(row["Weight, g"]).strip()
+        name = str(row.get("Dish name", "")).strip()
+        desc = str(row.get("Description", "")).strip()
+        price = str(row.get("Price", "")).strip()
+        weight = str(row.get("Weight, g", "")).strip()
 
         if price == "0":
             price = ""
 
-        # ---- Псевдо пунктир ----
-        dots = "." * 40
+        # ----- NAME + PRICE -----
+        item_table = Table(
+            [[
+                Paragraph(f"<b>{name}</b>", name_style),
+                Paragraph(f"<b>{price}</b>", name_style)
+            ]],
+            colWidths=[column_width * 0.75, column_width * 0.25]
+        )
 
-        line_html = f"<b>{name}</b> {dots} <b>{price}</b>"
-        name_para = Paragraph(line_html, name_style)
+        item_table.setStyle(TableStyle([
+            ('ALIGN', (1,0), (1,0), 'RIGHT'),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ]))
 
+        elements.append(item_table)
+
+        # ----- DESCRIPTION -----
         if weight and weight.lower() != "nan":
-            desc += f" &nbsp;&nbsp;&nbsp; <b>{weight}г</b>"
+            desc += f"   <b>{weight}г</b>"
 
-        desc_para = Paragraph(desc, desc_style)
+        if desc:
+            elements.append(Paragraph(desc, desc_style))
 
-        data.append([name_para])
-        data.append([desc_para])
+        elements.append(Spacer(1, 12))
 
-    # ===== TABLE =====
-    table = Table(
-        data,
-        colWidths=[frame_width],
-        repeatRows=1
-    )
+    return KeepTogether(elements)
 
-    table.setStyle(TableStyle([
-        ('BOX', (0, 0), (-1, -1), 1, colors.black),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EAEAEA")),
-        ('LEFTPADDING', (0, 0), (-1, -1), 12),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-    ]))
-
-    return table
 
 # ======================
 # PDF GENERATION
@@ -189,8 +192,6 @@ def generate_menu_pdf():
     if not os.path.exists(EXCEL_FILE):
         print("Excel missing")
         return
-
-    print("Generating MENU PDF...")
 
     df = pd.read_excel(EXCEL_FILE)
     df = df[df["Section"].notna()]
@@ -217,29 +218,54 @@ def generate_menu_pdf():
         bottomMargin=40
     )
 
-    frame_width = (A4[0] - 80 - 20) / 2
-    frame_height = A4[1] - 80
+    PAGE_WIDTH, PAGE_HEIGHT = A4
+    usable_width = PAGE_WIDTH - doc.leftMargin - doc.rightMargin
+    usable_height = PAGE_HEIGHT - doc.topMargin - doc.bottomMargin
 
-    frames = [
-        Frame(30, 40, frame_width, frame_height, id='col1'),
-        Frame(30 + frame_width + 20, 40, frame_width, frame_height, id='col2')
-    ]
+    COLUMN_GAP = 20
+    column_width = (usable_width - COLUMN_GAP) / 2
 
-    doc.addPageTemplates(PageTemplate(id='TwoCol', frames=frames))
+    # ----- FRAMES -----
+    frame_full = Frame(
+        doc.leftMargin,
+        doc.bottomMargin,
+        usable_width,
+        usable_height,
+        id="full"
+    )
+
+    frame_left = Frame(
+        doc.leftMargin,
+        doc.bottomMargin,
+        column_width,
+        usable_height,
+        id="left"
+    )
+
+    frame_right = Frame(
+        doc.leftMargin + column_width + COLUMN_GAP,
+        doc.bottomMargin,
+        column_width,
+        usable_height,
+        id="right"
+    )
+
+    template_full = PageTemplate(id="FullWidth", frames=[frame_full])
+    template_columns = PageTemplate(id="TwoColumns", frames=[frame_left, frame_right])
+
+    doc.addPageTemplates([template_full, template_columns])
 
     styles = getSampleStyleSheet()
-
     for style in styles.byName.values():
         style.fontName = "DejaVu"
 
-    # ===== ЦЕНТРАЛЬНИЙ ЗАГОЛОВОК РОЗДІЛУ =====
     section_style = ParagraphStyle(
-        'SectionCenter',
-        parent=styles['Normal'],
+        "SectionCenter",
+        parent=styles["Normal"],
         fontName="DejaVu",
         fontSize=26,
-        alignment=1,  # по центру
-        spaceAfter=6,
+        alignment=1,
+        spaceAfter=10,
         spaceBefore=10
     )
 
@@ -251,25 +277,29 @@ def generate_menu_pdf():
         if section_df.empty:
             continue
 
-        # ===== Назва розділу по центру =====
-        elements.append(Paragraph(f"<b>{section}</b>", section_style))
-        elements.append(HRFlowable(width="40%", thickness=1.2))
-        elements.append(Spacer(1, 18))
+        # ===== FULL WIDTH PAGE =====
+        elements.append(NextPageTemplate("FullWidth"))
+        elements.append(PageBreak())
 
-        # ===== Категорії =====
+        elements.append(Paragraph(f"<b>{section}</b>", section_style))
+        elements.append(HRFlowable(width="35%", thickness=1.4))
+        elements.append(Spacer(1, 30))
+
+        # ===== SWITCH TO COLUMNS =====
+        elements.append(NextPageTemplate("TwoColumns"))
+        elements.append(PageBreak())
+
         for category, items in section_df.groupby("Category"):
 
-            table = build_category_table(
+            block = build_category_block(
                 category,
                 items,
-                frame_width,
+                column_width,
                 styles
             )
 
-            elements.append(table)
-            elements.append(Spacer(1, 22))
-
-        elements.append(Spacer(1, 35))
+            elements.append(block)
+            elements.append(Spacer(1, 24))
 
     doc.build(elements)
 
@@ -277,57 +307,19 @@ def generate_menu_pdf():
 
 
 # ======================
-# SCHEDULER
-# ======================
-
-def scheduler_loop():
-    schedule.every(30).minutes.do(download_excel)
-    download_excel()
-
-    while True:
-        schedule.run_pending()
-        time.sleep(10)
-
-# ======================
-# WEB ROUTES
+# ROUTES
 # ======================
 
 @app.route("/")
 def index():
-
-    html = """
-    <!DOCTYPE html>
+    return render_template_string("""
     <html>
-    <head>
-        <title>Menu PDF</title>
-        <style>
-            body {
-                font-family: Arial;
-                text-align: center;
-                margin-top: 100px;
-                background: #f5f5f5;
-            }
-            .btn {
-                background: black;
-                color: white;
-                padding: 15px 30px;
-                font-size: 18px;
-                border-radius: 8px;
-                text-decoration: none;
-            }
-            .btn:hover {
-                background: #333;
-            }
-        </style>
-    </head>
-    <body>
+    <body style="text-align:center;margin-top:100px;">
         <h1>Restaurant Menu</h1>
-        <a class="btn" href="/download">Download PDF</a>
+        <a href="/download">Download PDF</a>
     </body>
     </html>
-    """
-
-    return render_template_string(html)
+    """)
 
 @app.route("/download")
 def download_pdf():
@@ -341,13 +333,15 @@ def download_pdf():
         as_attachment=True,
         download_name="menu.pdf"
     )
+
+
 # ======================
-# START SERVER
+# START
 # ======================
 
 if __name__ == "__main__":
 
-    t = threading.Thread(target=scheduler_loop, daemon=True)
+    t = threading.Thread(target=download_excel, daemon=True)
     t.start()
 
     port = int(os.environ.get("PORT", 5000))
