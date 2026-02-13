@@ -181,64 +181,6 @@ def build_category_table(category_name, items_df, frame_width, styles):
     return table
 
 # ======================
-# CATEGORY TABLE BUILDER
-# ======================
-
-def build_category_table(category_name, items_df, frame_width, styles):
-
-    data = []
-
-    # ===== HEADER =====
-    header_style = ParagraphStyle(
-        "CatHeader",
-        parent=styles["Normal"],
-        fontName="DejaVu",
-        fontSize=15,
-        spaceBefore=4,
-        spaceAfter=4,
-    )
-
-    header_para = Paragraph(f"<b>{category_name}</b>", header_style)
-
-    data.append([header_para])
-
-    # ===== DISH ROWS =====
-    for _, row in items_df.iterrows():
-
-        name = str(row["Dish name"]).strip()
-        desc = str(row["Description"]).strip()
-        price = str(row["Price"]).strip()
-        weight = str(row["Weight, g"]).strip()
-
-        if price == "0":
-            price = ""
-
-    # ===== TABLE =====
-    table = Table(
-        data,
-        colWidths=[frame_width],
-        repeatRows=1
-    )
-
-    table.setStyle(TableStyle([
-        # рамка
-        ('BOX', (0, 0), (-1, -1), 1, colors.black),
-
-        # сірий header
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EAEAEA")),
-
-        # padding
-        ('LEFTPADDING', (0, 0), (-1, -1), 12),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-    ]))
-
-    return table
-
-# ======================
 # PDF GENERATION
 # ======================
 
@@ -387,8 +329,6 @@ def index():
 
     return render_template_string(html)
 
-
-@app.route("/download")
 @app.route("/download")
 def download_pdf():
 
