@@ -17,6 +17,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
+from flask import send_file, render_template_string
 
 
 app = Flask(__name__)
@@ -259,7 +260,59 @@ def scheduler_loop():
         schedule.run_pending()
         time.sleep(10)
 
+# ======================
+# WEB ROUTES
+# ======================
 
+@app.route("/")
+def index():
+
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Menu PDF</title>
+        <style>
+            body {
+                font-family: Arial;
+                text-align: center;
+                margin-top: 100px;
+                background: #f5f5f5;
+            }
+            .btn {
+                background: black;
+                color: white;
+                padding: 15px 30px;
+                font-size: 18px;
+                border-radius: 8px;
+                text-decoration: none;
+            }
+            .btn:hover {
+                background: #333;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Restaurant Menu</h1>
+        <a class="btn" href="/download">Download PDF</a>
+    </body>
+    </html>
+    """
+
+    return render_template_string(html)
+
+
+@app.route("/download")
+def download_pdf():
+
+    if not os.path.exists(PDF_FILE):
+        return "PDF not generated yet", 404
+
+    return send_file(
+        PDF_FILE,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=
 # ======================
 # START SERVER
 # ======================
