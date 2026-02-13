@@ -142,35 +142,72 @@ class CategoryCard(Flowable):
         self.height = total_height
         return self.width, total_height
 
+    def split(self, availWidth, availHeight):
+        """
+        Розбиваємо картку якщо вона не влазить.
+        """
+
+        # якщо навіть header не влазить — перенести повністю
+        min_height = self.header_height + 2*self.padding
+        if availHeight < min_height:
+            return []
+
+        current_height = self.header_height + self.padding
+        fitting_items = []
+        remaining_items = []
+
+        for item in self.items:
+            w, h = item.wrap(self.width - 2*self.padding, availHeight)
+
+            if current_height + h + 6 <= availHeight:
+                fitting_items.append(item)
+                current_height += h + 6
+            else:
+                remaining_items.append(item)
+
+        if not fitting_items:
+            return []
+
+        first_part = CategoryCard(
+            self.title,
+            fitting_items,
+            self.width,
+            self.styles
+        )
+
+        if remaining_items:
+            second_part = CategoryCard(
+                self.title,
+                remaining_items,
+                self.width,
+                self.styles
+            )
+            return [first_part, second_part]
+
+        return [first_part]
+
     def draw(self):
         c = self.canv
         w = self.width
         h = self.height
 
-        # зовнішня рамка
         c.setLineWidth(1)
         c.roundRect(0, 0, w, h, 12, stroke=1, fill=0)
 
-        # header фон
         c.setFillColor(colors.HexColor("#EAEAEA"))
         c.roundRect(0, h - self.header_height, w, self.header_height, 12, stroke=0, fill=1)
         c.setFillColor(colors.black)
 
-        # title
         c.setFont("DejaVu", 14)
         c.drawString(self.padding, h - 19, self.title)
 
-        # контент
         y = h - self.header_height - self.padding
 
         for item in self.items:
             iw, ih = item.wrap(w - 2*self.padding, h)
             item.drawOn(c, self.padding, y - ih)
             y -= ih + 6
-
-
-
-
+            
 def generate_clean_menu_pdf():
 
     if not os.path.exists(EXCEL_FILE):
