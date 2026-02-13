@@ -102,77 +102,83 @@ from reportlab.platypus import Flowable
 from reportlab.lib import colors
 
 
-cclass DishRow(Flowable):
+def build_category_table(category_name, items_df, frame_width, styles):
 
-    def __init__(self, name, desc, price, weight, width):
-        super().__init__()
-        self.name = name
-        self.desc = desc
-        self.price = price
-        self.weight = weight
-        self.width = width
+    data = []
 
-        self.name_font = 11
-        self.desc_font = 8
+    # ===== HEADER =====
+    header_style = ParagraphStyle(
+        "CatHeader",
+        parent=styles["Normal"],
+        fontName="DejaVu",
+        fontSize=15,
+        spaceBefore=4,
+        spaceAfter=4,
+    )
 
-        self.name_height = 14
-        self.desc_line_height = 10
+    header_para = Paragraph(f"<b>{category_name}</b>", header_style)
+    data.append([header_para])
 
-    def wrap(self, availWidth, availHeight):
+    # ===== DISH STYLE =====
+    name_style = ParagraphStyle(
+        "DishName",
+        parent=styles["Normal"],
+        fontName="DejaVu",
+        fontSize=11,
+        leading=14
+    )
 
-        # перенос опису
-        self.desc_lines = simpleSplit(
-            self.desc,
-            "DejaVu",
-            self.desc_font,
-            self.width
-        )
+    desc_style = ParagraphStyle(
+        "DishDesc",
+        parent=styles["Normal"],
+        fontName="DejaVu",
+        fontSize=8,
+        textColor=colors.grey,
+        leading=10
+    )
 
-        self.height = (
-            self.name_height +
-            len(self.desc_lines) * self.desc_line_height +
-            6
-        )
+    for _, row in items_df.iterrows():
 
-        return self.width, self.height
+        name = str(row["Dish name"]).strip()
+        desc = str(row["Description"]).strip()
+        price = str(row["Price"]).strip()
+        weight = str(row["Weight, g"]).strip()
 
-    def draw(self):
+        if price == "0":
+            price = ""
 
-        c = self.canv
+        # ---- Псевдо пунктир ----
+        dots = "." * 40
 
-        y = self.height
+        line_html = f"<b>{name}</b> {dots} <b>{price}</b>"
+        name_para = Paragraph(line_html, name_style)
 
-        # Назва
-        c.setFont("DejaVu", self.name_font)
-        c.drawString(0, y - 14, self.name)
+        if weight and weight.lower() != "nan":
+            desc += f" &nbsp;&nbsp;&nbsp; <b>{weight}г</b>"
 
-        # Ціна
-        if self.price:
-            price_width = c.stringWidth(self.price, "DejaVu", self.name_font)
-            c.drawString(self.width - price_width, y - 14, self.price)
+        desc_para = Paragraph(desc, desc_style)
 
-        # Пунктир
-        c.setDash(1, 2)
-        c.line(0, y - 18, self.width, y - 18)
-        c.setDash()
+        data.append([name_para])
+        data.append([desc_para])
 
-        # Опис
-        c.setFont("DejaVu", self.desc_font)
-        c.setFillColor(colors.grey)
+    # ===== TABLE =====
+    table = Table(
+        data,
+        colWidths=[frame_width],
+        repeatRows=1
+    )
 
-        current_y = y - 28
+    table.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), 1, colors.black),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EAEAEA")),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
 
-        for line in self.desc_lines:
-            c.drawString(0, current_y, line)
-            current_y -= self.desc_line_height
-
-        # Вага
-        if self.weight:
-            weight_text = f"{self.weight}г"
-            weight_width = c.stringWidth(weight_text, "DejaVu", self.desc_font)
-            c.drawString(self.width - weight_width, current_y + self.desc_line_height, weight_text)
-
-        c.setFillColor(colors.black)
+    return table
 
 # ======================
 # CATEGORY TABLE BUILDER
