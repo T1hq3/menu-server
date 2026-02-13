@@ -210,7 +210,7 @@ def generate_menu_pdf():
     styles = getSampleStyleSheet()
     
     for style in styles.byName.values():
-    style.fontName = "DejaVu"
+        style.fontName = "DejaVu"
 
     section_style = ParagraphStyle(
         'SectionStyle',
