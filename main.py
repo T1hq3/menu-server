@@ -119,92 +119,77 @@ def split_text(text, max_len):
 
     return lines
 
-class CategoryCard(Flowable):
+def build_category_table(category_name, items_df, frame_width, styles):
 
-    def __init__(self, title, items, width, styles):
-        super().__init__()
-        self.title = title
-        self.items = items
-        self.width = width
-        self.styles = styles
-        self.padding = 10
-        self.header_height = 28
+    data = []
 
-    def wrap(self, availWidth, availHeight):
-        self.width = availWidth
-        total_height = self.header_height + self.padding
-
-        for item in self.items:
-            w, h = item.wrap(self.width - 2 * self.padding, availHeight)
-            total_height += h + 6
-
-        total_height += self.padding
-        self.height = total_height
-        return self.width, total_height
-
-    def split(self, availWidth, availHeight):
-
-        min_height = self.header_height + 2 * self.padding
-
-        if availHeight < min_height:
-            return []
-
-        current_height = self.header_height + self.padding
-        fitting_items = []
-        remaining_items = []
-
-        for item in self.items:
-            w, h = item.wrap(self.width - 2 * self.padding, availHeight)
-
-            if current_height + h + 6 <= availHeight:
-                fitting_items.append(item)
-                current_height += h + 6
-            else:
-                remaining_items.append(item)
-
-        if not fitting_items:
-            return []
-
-        first_part = CategoryCard(
-            self.title,
-            fitting_items,
-            self.width,
-            self.styles
+    # ===== HEADER ROW =====
+    header_para = Paragraph(
+        f"<b>{category_name}</b>",
+        ParagraphStyle(
+            "CatHeader",
+            parent=styles["Normal"],
+            fontName="DejaVu",
+            fontSize=14,
+            spaceBefore=6,
+            spaceAfter=6,
         )
+    )
 
-        if remaining_items:
-            second_part = CategoryCard(
-                self.title,
-                remaining_items,
-                self.width,
-                self.styles
-            )
-            return [first_part, second_part]
+    data.append([header_para, ""])
 
-        return [first_part]
+    # ===== DISH ROWS =====
+    for _, row in items_df.iterrows():
 
-    def draw(self):
-        c = self.canv
-        w = self.width
-        h = self.height
+        name = str(row["Dish name"]).strip()
+        desc = str(row["Description"]).strip()
+        price = str(row["Price"]).strip()
+        weight = str(row["Weight, g"]).strip()
 
-        c.setLineWidth(1)
-        c.roundRect(0, 0, w, h, 12, stroke=1, fill=0)
+        if price == "0":
+            price = ""
 
-        c.setFillColor(colors.HexColor("#EAEAEA"))
-        c.roundRect(0, h - self.header_height, w, self.header_height, 12, stroke=0, fill=1)
-        c.setFillColor(colors.black)
+        left_html = f"<b>{name}</b>"
+        if desc and desc.lower() != "nan":
+            left_html += f"<br/><font size=9 color=grey>{desc}</font>"
 
-        c.setFont("DejaVu", 14)
-        c.drawString(self.padding, h - 19, self.title)
+        right_html = ""
+        if price:
+            right_html += f"<b>{price}</b>"
+        if weight and weight.lower() != "nan":
+            right_html += f"<br/><font size=8>{weight}г</font>"
 
-        y = h - self.header_height - self.padding
+        left_para = Paragraph(left_html, styles["Normal"])
+        right_para = Paragraph(right_html, styles["Normal"])
 
-        for item in self.items:
-            iw, ih = item.wrap(w - 2 * self.padding, h)
-            item.drawOn(c, self.padding, y - ih)
-            y -= ih + 6
+        data.append([left_para, right_para])
 
+    table = Table(
+        data,
+        colWidths=[frame_width - 70, 60],
+        repeatRows=1  # 🔥 МАГІЯ
+    )
+
+    table.setStyle(TableStyle([
+
+        # Rounded-like card
+        ('BOX', (0,0), (-1,-1), 1, colors.black),
+
+        # Header background
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#EAEAEA")),
+
+        # Padding
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('ALIGN', (1,1), (1,-1), 'RIGHT'),
+
+    ]))
+
+    return table
 
             
 def generate_clean_menu_pdf():
