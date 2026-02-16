@@ -1,11 +1,16 @@
-from flask import Flask, send_file, render_template_string
+from flask import Flask, send_file, render_template_string, jsonify
 import requests
-import schedule
 import time
 import threading
 import os
 import pandas as pd
 from weasyprint import HTML
+from datetime import datetime, timedelta
+import logging
+
+# ======================
+# CONFIG
+# ======================
 
 app = Flask(__name__)
 
@@ -19,29 +24,46 @@ SAVE_PATH = "./exports"
 EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
 PDF_FILE = f"{SAVE_PATH}/menu.pdf"
 
+UPDATE_INTERVAL = 1800  # 30 хвилин
+
+STATUS = {
+    "last_update": None,
+    "next_update": None,
+    "excel_downloaded": False,
+    "pdf_generated": False,
+    "pdf_ready": False,
+    "error": None
+}
 
 # ======================
-# DOWNLOAD EXCEL
+# LOGGING
+# ======================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# ======================
+# UPDATE MENU (DOWNLOAD + PDF)
 # ======================
 
 def update_menu():
-    print("Updating menu...")
-    print("IDENTIFIER:", bool(IDENTIFIER))
-    print("PASSWORD:", bool(PASSWORD))
+    logging.info("=== START UPDATE ===")
+
+    STATUS["error"] = None
+    STATUS["excel_downloaded"] = False
+    STATUS["pdf_generated"] = False
+    STATUS["pdf_ready"] = False
 
     if not IDENTIFIER or not PASSWORD:
-        print("ENV variables missing")
+        STATUS["error"] = "ENV variables missing"
+        logging.error("ENV variables missing")
         return
 
     os.makedirs(SAVE_PATH, exist_ok=True)
 
     session = requests.Session()
-    session.headers.update({
-        "accept": "*/*",
-        "content-type": "application/json",
-        "user-agent": "Mozilla/5.0",
-        "referer": "https://sunrise.choiceqr.com/admin/"
-    })
 
     try:
         # LOGIN
@@ -54,35 +76,56 @@ def update_menu():
             timeout=15
         )
 
-        print("Login status:", login_res.status_code)
-
         if login_res.status_code not in (200, 201):
-            print("Login error:", login_res.text)
+            STATUS["error"] = f"Login failed: {login_res.status_code}"
+            logging.error(STATUS["error"])
             return
 
         token = login_res.json().get("token")
         if not token:
-            print("Token not found")
+            STATUS["error"] = "Token not received"
+            logging.error("Token not received")
             return
 
         session.headers.update({"authorization": token})
 
-        # EXPORT
+        # DOWNLOAD EXCEL
         export_res = session.get(EXPORT_URL, timeout=30)
 
-        print("Export status:", export_res.status_code)
+        if export_res.status_code != 200:
+            STATUS["error"] = f"Excel download failed: {export_res.status_code}"
+            logging.error(STATUS["error"])
+            return
 
-        if export_res.status_code == 200:
-            with open(EXCEL_FILE, "wb") as f:
-                f.write(export_res.content)
+        with open(EXCEL_FILE, "wb") as f:
+            f.write(export_res.content)
 
-            print("✔ Excel updated")
-            generate_menu_pdf()
+        if os.path.exists(EXCEL_FILE) and os.path.getsize(EXCEL_FILE) > 0:
+            STATUS["excel_downloaded"] = True
+            logging.info("✔ Excel downloaded")
         else:
-            print("Download error:", export_res.text)
+            STATUS["error"] = "Excel file corrupted"
+            return
+
+        # GENERATE PDF
+        generate_menu_pdf()
+
+        if os.path.exists(PDF_FILE) and os.path.getsize(PDF_FILE) > 0:
+            STATUS["pdf_generated"] = True
+            STATUS["pdf_ready"] = True
+            logging.info("✔ PDF generated and ready")
+        else:
+            STATUS["error"] = "PDF generation failed"
+
+        # TIME TRACKING
+        STATUS["last_update"] = datetime.now()
+        STATUS["next_update"] = datetime.now() + timedelta(seconds=UPDATE_INTERVAL)
+
+        logging.info("=== UPDATE COMPLETE ===")
 
     except Exception as e:
-        print("Error in update_menu:", e)
+        STATUS["error"] = str(e)
+        logging.exception("Critical error")
 
 
 # ======================
@@ -108,115 +151,35 @@ def build_html(df):
     <head>
     <meta charset="utf-8">
     <style>
-
-    @page {
-    size: A4;
-    margin: 25px 35px;
-}
-
-body {
-    font-family: DejaVu Sans, sans-serif;
-}
-
-.section {
-    page-break-before: always;
-}
-
-.section:first-child {
-    page-break-before: auto;
-}
-
-h1 {
-    text-align: center;
-    font-size: 28px;
-    margin-bottom: 25px;
-    font-weight: 700;
-}
-
-.columns {
-    column-count: 2;
-    column-gap: 35px;
-}
-
-/* ===== CATEGORY CARD ===== */
-
-.category {
-    break-inside: avoid;
-    margin-bottom: 20px;
-    border: 2px solid #333;
-    border-radius: 10px;
-    padding: 14px 16px;
-}
-
-/* ===== CATEGORY TITLE ===== */
-
-.cat-header {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 12px;
-}
-
-/* ===== ITEM ===== */
-
-.item {
-    margin-bottom: 8px;
-}
-
-/* name + price row */
-.item-top {
-    display: flex;
-    justify-content: space-between;
-    border-bottom: 1px dotted #777;
-    padding-bottom: 2px;
-}
-
-/* dish name */
-.item-top span:first-child {
-    font-weight: 700;
-    font-size: 14px;
-}
-
-/* price */
-.item-top span:last-child {
-    font-weight: 700;
-    font-size: 14px;
-}
-
-/* description */
-.desc {
-    font-size: 10px;
-    color: #444;
-    margin-top: 2px;
-    line-height: 1.2;
-}
-
-/* weight */
-.weight {
-    font-size: 9px;
-    color: #666;
-}
+    @page { size: A4; margin: 25px 35px; }
+    body { font-family: DejaVu Sans, sans-serif; }
+    .section { page-break-before: always; }
+    .section:first-child { page-break-before: auto; }
+    h1 { text-align: center; font-size: 28px; margin-bottom: 25px; font-weight: 700; }
+    .columns { column-count: 2; column-gap: 35px; }
+    .category { break-inside: avoid; margin-bottom: 20px; border: 2px solid #333; border-radius: 10px; padding: 14px 16px; }
+    .cat-header { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+    .item { margin-bottom: 8px; }
+    .item-top { display: flex; justify-content: space-between; border-bottom: 1px dotted #777; padding-bottom: 2px; }
+    .item-top span { font-weight: 700; font-size: 14px; }
+    .desc { font-size: 10px; color: #444; margin-top: 2px; line-height: 1.2; }
+    .weight { font-size: 9px; color: #666; }
     </style>
     </head>
     <body>
     """
 
     for section in SECTION_ORDER:
-
         section_df = df[df["Section"] == section]
         if section_df.empty:
             continue
 
-        html += f'<div class="section">'
-        html += f'<h1>{section}</h1>'
-        html += '<div class="columns">'
+        html += f'<div class="section"><h1>{section}</h1><div class="columns">'
 
         for category, items in section_df.groupby("Category"):
-
-            html += f'<div class="category">'
-            html += f'<div class="cat-header">{category}</div>'
+            html += f'<div class="category"><div class="cat-header">{category}</div>'
 
             for _, row in items.iterrows():
-
                 name = str(row.get("Dish name", "")).strip()
                 desc = str(row.get("Description", "")).strip()
                 price = str(row.get("Price", "")).strip()
@@ -225,8 +188,8 @@ h1 {
                 if price == "0":
                     price = ""
 
-                html += '<div class="item">'
                 html += f'''
+                <div class="item">
                     <div class="item-top">
                         <span>{name}</span>
                         <span>{price}</span>
@@ -235,7 +198,6 @@ h1 {
 
                 if desc:
                     html += f'<div class="desc">{desc}</div>'
-
                 if weight and weight.lower() != "nan":
                     html += f'<div class="weight">{weight} г</div>'
 
@@ -246,7 +208,6 @@ h1 {
         html += '</div></div>'
 
     html += "</body></html>"
-
     return html
 
 
@@ -257,7 +218,7 @@ h1 {
 def generate_menu_pdf():
 
     if not os.path.exists(EXCEL_FILE):
-        print("Excel missing")
+        STATUS["error"] = "Excel missing"
         return
 
     df = pd.read_excel(EXCEL_FILE)
@@ -265,10 +226,9 @@ def generate_menu_pdf():
     df = df.fillna("")
 
     html = build_html(df)
-
     HTML(string=html).write_pdf(PDF_FILE)
 
-    print("✔ MENU PDF GENERATED")
+    logging.info("✔ MENU PDF GENERATED")
 
 
 # ======================
@@ -281,16 +241,17 @@ def index():
     <html>
     <body style="text-align:center;margin-top:100px;">
         <h1>Restaurant Menu</h1>
-        <a href="/download">Download PDF</a>
+        <a href="/download">Download PDF</a><br><br>
+        <a href="/status">System Status</a>
     </body>
     </html>
     """)
-    
+
 @app.route("/download")
 def download_pdf():
 
-    if not os.path.exists(PDF_FILE):
-        return "PDF not generated yet", 404
+    if not STATUS["pdf_ready"]:
+        return "PDF not ready yet", 503
 
     return send_file(
         PDF_FILE,
@@ -299,6 +260,32 @@ def download_pdf():
         download_name="menu.pdf"
     )
 
+@app.route("/status")
+def status():
+    return jsonify({
+        "last_update": str(STATUS["last_update"]),
+        "next_update": str(STATUS["next_update"]),
+        "excel_downloaded": STATUS["excel_downloaded"],
+        "pdf_generated": STATUS["pdf_generated"],
+        "pdf_ready": STATUS["pdf_ready"],
+        "error": STATUS["error"]
+    })
+
+
+# ======================
+# BACKGROUND WORKER
+# ======================
+
+def background_worker():
+    while True:
+        update_menu()
+
+        for i in range(UPDATE_INTERVAL, 0, -1):
+            mins = i // 60
+            secs = i % 60
+            print(f"Next update in: {mins:02d}:{secs:02d}", end="\r")
+            time.sleep(1)
+
 
 # ======================
 # START
@@ -306,18 +293,8 @@ def download_pdf():
 
 if __name__ == "__main__":
 
-    def background_worker():
-        while True:
-            try:
-                update_menu()
-            except Exception as e:
-                print("Background error:", e)
-
-            time.sleep(1800)  # 30 хв (1800 секунд)
-
     t = threading.Thread(target=background_worker, daemon=True)
     t.start()
 
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
