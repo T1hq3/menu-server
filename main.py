@@ -57,6 +57,16 @@ def login_and_get_session():
 
     session = requests.Session()
 
+    # Повні headers як у робочому скрипті
+    session.headers.update({
+        "accept": "*/*",
+        "content-type": "application/json",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "referer": "https://sunrise.choiceqr.com/admin/"
+    })
+
+    logging.info("Sending login request...")
+
     response = session.post(
         LOGIN_URL,
         json={
@@ -66,8 +76,10 @@ def login_and_get_session():
         timeout=15
     )
 
+    logging.info(f"Login status: {response.status_code}")
+
     if response.status_code not in (200, 201):
-        raise Exception(f"Login failed: {response.status_code}")
+        raise Exception(f"Login failed: {response.status_code} | {response.text}")
 
     try:
         data = response.json()
@@ -78,8 +90,14 @@ def login_and_get_session():
     if not token:
         raise Exception("Token not received")
 
+    # Дуже важливо
     session.headers.update({"authorization": token})
+    session.cookies.set("token", token)
+
+    logging.info("Login successful")
+
     return session
+
 
 
 # ======================
