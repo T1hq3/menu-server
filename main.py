@@ -169,77 +169,88 @@ def build_html(df):
     <meta charset="utf-8">
     <style>
 
-    @page { size: A4; margin: 25px 35px; }
+@page {
+    size: A4;
+    margin: 35px 40px;
+}
 
-    body { 
-        font-family: DejaVu Sans, sans-serif;
-        font-size: 12px;
-    }
+body {
+    font-family: "DejaVu Sans", sans-serif;
+    background: #f8f8f6;
+    color: #111;
+}
 
-    .section {
-        page-break-before: always;
-        margin-bottom: 30px;
-    }
+.section {
+    page-break-before: always;
+}
 
-    .section:first-of-type {
-        page-break-before: auto;
-    }
+.section:first-of-type {
+    page-break-before: auto;
+}
 
-    h1 {
-        text-align: center;
-        font-size: 26px;
-        margin-bottom: 25px;
-        font-weight: 700;
-    }
+h1 {
+    text-align: center;
+    font-size: 28px;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
 
-    /* ===== 2 COLUMN LAYOUT ===== */
+.section-line {
+    width: 80px;
+    height: 1px;
+    background: #111;
+    margin: 0 auto 30px auto;
+}
 
-    .columns {
-        column-count: 2;
-        column-gap: 30px;
-    }
+.columns {
+    column-count: 2;
+    column-gap: 35px;
+}
 
-    .category {
-        break-inside: avoid;
-        margin-bottom: 18px;
-        border: 2px solid #333;
-        border-radius: 10px;
-        padding: 14px 16px;
-    }
+.category {
+    break-inside: avoid;
+    margin-bottom: 25px;
+}
 
-    .cat-header {
-        font-size: 18px;
-        font-weight: 700;
-        margin-bottom: 10px;
-    }
+.cat-header {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 4px;
+}
 
-    .item {
-        margin-bottom: 8px;
-    }
+.item {
+    margin-bottom: 10px;
+}
 
-    .item-top {
-        display: flex;
-        justify-content: space-between;
-        border-bottom: 1px dotted #777;
-        padding-bottom: 2px;
-    }
+.item-top {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dotted #bbb;
+    padding-bottom: 2px;
+}
 
-    .item-top span {
-        font-weight: 700;
-        font-size: 14px;
-    }
+.item-top span {
+    font-weight: 700;
+    font-size: 14px;
+}
 
-    .desc {
-        font-size: 10px;
-        color: #444;
-        margin-top: 2px;
-        line-height: 1.3;
-    }
+.desc {
+    font-size: 10px;
+    color: #555;
+    margin-top: 3px;
+    line-height: 1.3;
+}
 
-    .weight {
-        font-size: 9px;
-        color: #666;
-    }
+.weight {
+    font-size: 9px;
+    color: #777;
+}
+
 
     </style>
     </head>
