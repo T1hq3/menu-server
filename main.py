@@ -168,30 +168,54 @@ def build_html(df):
     <head>
     <meta charset="utf-8">
     <style>
+
     @page { size: A4; margin: 25px 35px; }
-    body { font-family: DejaVu Sans, sans-serif; }
 
-    .section { margin-bottom: 40px; }
-    h1 { text-align: center; font-size: 28px; margin-bottom: 25px; }
+    body { 
+        font-family: DejaVu Sans, sans-serif;
+        font-size: 12px;
+    }
 
-    .columns { display: flex; gap: 30px; }
-    .column { flex: 1; }
+    .section {
+        page-break-before: always;
+        margin-bottom: 30px;
+    }
+
+    .section:first-of-type {
+        page-break-before: auto;
+    }
+
+    h1 {
+        text-align: center;
+        font-size: 26px;
+        margin-bottom: 25px;
+        font-weight: 700;
+    }
+
+    /* ===== 2 COLUMN LAYOUT ===== */
+
+    .columns {
+        column-count: 2;
+        column-gap: 30px;
+    }
 
     .category {
-        margin-bottom: 20px;
+        break-inside: avoid;
+        margin-bottom: 18px;
         border: 2px solid #333;
         border-radius: 10px;
         padding: 14px 16px;
-        page-break-inside: avoid;
     }
 
     .cat-header {
-        font-size: 20px;
+        font-size: 18px;
         font-weight: 700;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }
 
-    .item { margin-bottom: 8px; }
+    .item {
+        margin-bottom: 8px;
+    }
 
     .item-top {
         display: flex;
@@ -205,8 +229,17 @@ def build_html(df):
         font-size: 14px;
     }
 
-    .desc { font-size: 10px; color: #444; margin-top: 2px; }
-    .weight { font-size: 9px; color: #666; }
+    .desc {
+        font-size: 10px;
+        color: #444;
+        margin-top: 2px;
+        line-height: 1.3;
+    }
+
+    .weight {
+        font-size: 9px;
+        color: #666;
+    }
 
     </style>
     </head>
@@ -218,13 +251,14 @@ def build_html(df):
         if section_df.empty:
             continue
 
-        html += f'<div class="section"><h1>{section}</h1>'
-        html += '<div class="columns"><div class="column">'
+        html += f'<div class="section">'
+        html += f'<h1>{section}</h1>'
+        html += '<div class="columns">'
 
         for category, items in section_df.groupby("Category"):
             html += render_category(category, items)
 
-        html += '</div></div></div>'
+        html += '</div></div>'
 
     html += "</body></html>"
     return html
