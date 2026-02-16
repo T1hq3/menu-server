@@ -131,7 +131,6 @@ def update_menu():
 # ======================
 # HTML BUILDER
 # ======================
-
 def build_html(df):
 
     SECTION_ORDER = [
@@ -146,70 +145,169 @@ def build_html(df):
         "Винна карта",
     ]
 
+    def render_category(category, items):
+        block = f'<div class="category"><div class="cat-header">{category}</div>'
+
+        for _, row in items.iterrows():
+            name = str(row.get("Dish name", "")).strip()
+            desc = str(row.get("Description", "")).strip()
+            price = str(row.get("Price", "")).strip()
+            weight = str(row.get("Weight, g", "")).strip()
+
+            if price == "0":
+                price = ""
+
+            block += f'''
+            <div class="item">
+                <div class="item-top">
+                    <span>{name}</span>
+                    <span>{price}</span>
+                </div>
+            '''
+
+            if desc:
+                block += f'<div class="desc">{desc}</div>'
+
+            if weight and weight.lower() != "nan":
+                block += f'<div class="weight">{weight} г</div>'
+
+            block += '</div>'
+
+        block += '</div>'
+        return block
+
     html = """
     <html>
     <head>
     <meta charset="utf-8">
     <style>
     @page { size: A4; margin: 25px 35px; }
+
     body { font-family: DejaVu Sans, sans-serif; }
-    .section { page-break-before: always; }
-    .section:first-child { page-break-before: auto; }
-    h1 { text-align: center; font-size: 28px; margin-bottom: 25px; font-weight: 700; }
-    .columns { column-count: 2; column-gap: 35px; }
-    .category { break-inside: avoid; margin-bottom: 20px; border: 2px solid #333; border-radius: 10px; padding: 14px 16px; }
-    .cat-header { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+
+    .section { margin-bottom: 40px; }
+
+    h1 {
+        text-align: center;
+        font-size: 28px;
+        margin-bottom: 25px;
+        font-weight: 700;
+    }
+
+    .columns {
+        display: flex;
+        gap: 30px;
+        align-items: flex-start;
+    }
+
+    .column {
+        flex: 1;
+    }
+
+    .category {
+        margin-bottom: 20px;
+        border: 2px solid #333;
+        border-radius: 10px;
+        padding: 14px 16px;
+        page-break-inside: avoid;
+    }
+
+    .cat-header {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
     .item { margin-bottom: 8px; }
-    .item-top { display: flex; justify-content: space-between; border-bottom: 1px dotted #777; padding-bottom: 2px; }
-    .item-top span { font-weight: 700; font-size: 14px; }
-    .desc { font-size: 10px; color: #444; margin-top: 2px; line-height: 1.2; }
-    .weight { font-size: 9px; color: #666; }
+
+    .item-top {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px dotted #777;
+        padding-bottom: 2px;
+    }
+
+    .item-top span {
+        font-weight: 700;
+        font-size: 14px;
+    }
+
+    .desc {
+        font-size: 10px;
+        color: #444;
+        margin-top: 2px;
+        line-height: 1.2;
+    }
+
+    .weight {
+        font-size: 9px;
+        color: #666;
+    }
+
     </style>
     </head>
     <body>
     """
 
     for section in SECTION_ORDER:
+
         section_df = df[df["Section"] == section]
         if section_df.empty:
             continue
 
-        html += f'<div class="section"><h1>{section}</h1><div class="columns">'
+        html += f'<div class="section"><h1>{section}</h1>'
+
+        # ===== Підготовка категорій з вагою =====
+
+        categories = []
 
         for category, items in section_df.groupby("Category"):
-            html += f'<div class="category"><div class="cat-header">{category}</div>'
+            score = 2  # header weight
 
             for _, row in items.iterrows():
-                name = str(row.get("Dish name", "")).strip()
-                desc = str(row.get("Description", "")).strip()
-                price = str(row.get("Price", "")).strip()
-                weight = str(row.get("Weight, g", "")).strip()
+                score += 3  # назва
+                if str(row.get("Description", "")).strip():
+                    score += 1
+                if str(row.get("Weight, g", "")).strip():
+                    score += 0.5
 
-                if price == "0":
-                    price = ""
+            categories.append((category, items, score))
 
-                html += f'''
-                <div class="item">
-                    <div class="item-top">
-                        <span>{name}</span>
-                        <span>{price}</span>
-                    </div>
-                '''
+        # ===== Балансування =====
 
-                if desc:
-                    html += f'<div class="desc">{desc}</div>'
-                if weight and weight.lower() != "nan":
-                    html += f'<div class="weight">{weight} г</div>'
+        left = []
+        right = []
 
-                html += '</div>'
+        left_height = 0
+        right_height = 0
 
-            html += '</div>'
+        for cat, items, score in categories:
+            if left_height <= right_height:
+                left.append((cat, items))
+                left_height += score
+            else:
+                right.append((cat, items))
+                right_height += score
+
+        # ===== HTML колонок =====
+
+        html += '<div class="columns">'
+
+        html += '<div class="column">'
+        for cat, items in left:
+            html += render_category(cat, items)
+        html += '</div>'
+
+        html += '<div class="column">'
+        for cat, items in right:
+            html += render_category(cat, items)
+        html += '</div>'
 
         html += '</div></div>'
 
     html += "</body></html>"
-    return html
 
+    return html
 
 # ======================
 # PDF GENERATION
