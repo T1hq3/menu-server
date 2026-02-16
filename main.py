@@ -133,7 +133,10 @@ def build_html(df):
     ]
 
     def render_category(category, items):
-        block = f'<div class="category"><div class="cat-header">{category}</div>'
+        block = f'''
+        <div class="category">
+            <div class="cat-header">{category}</div>
+        '''
 
         for _, row in items.iterrows():
             name = str(row.get("Dish name", "")).strip()
@@ -147,8 +150,8 @@ def build_html(df):
             block += f'''
             <div class="item">
                 <div class="item-top">
-                    <span>{name}</span>
-                    <span>{price}</span>
+                    <span class="dish-name">{name}</span>
+                    <span class="price">{price}</span>
                 </div>
             '''
 
@@ -169,88 +172,104 @@ def build_html(df):
     <meta charset="utf-8">
     <style>
 
-@page {
-    size: A4;
-    margin: 35px 40px;
-}
+    @page {
+        size: A4;
+        margin: 40px 50px;
+    }
 
-body {
-    font-family: "DejaVu Sans", sans-serif;
-    background: #f8f8f6;
-    color: #111;
-}
+    body {
+        font-family: "DejaVu Sans", sans-serif;
+        font-size: 12px;
+        color: #111;
+    }
 
-.section {
-    page-break-before: always;
-}
+    /* ===== SECTION ===== */
 
-.section:first-of-type {
-    page-break-before: auto;
-}
+    .section {
+        page-break-before: always;
+    }
 
-h1 {
-    text-align: center;
-    font-size: 28px;
-    letter-spacing: 2px;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-}
+    .section:first-of-type {
+        page-break-before: auto;
+    }
 
-.section-line {
-    width: 80px;
-    height: 1px;
-    background: #111;
-    margin: 0 auto 30px auto;
-}
+    h1 {
+        text-align: center;
+        font-size: 30px;
+        letter-spacing: 2px;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+    }
 
-.columns {
-    column-count: 2;
-    column-gap: 35px;
-}
+    .section-line {
+        width: 90px;
+        height: 1px;
+        background: #111;
+        margin: 0 auto 35px auto;
+    }
 
-.category {
-    break-inside: avoid;
-    margin-bottom: 25px;
-}
+    /* ===== CATEGORY ===== */
 
-.cat-header {
-    font-size: 16px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px solid #ccc;
-    padding-bottom: 4px;
-}
+    .category {
+        margin-bottom: 30px;
+        break-inside: avoid;
+    }
 
-.item {
-    margin-bottom: 10px;
-}
+    .cat-header {
+        font-size: 16px;
+        font-weight: 700;
+        text-transform: uppercase;
+        border-bottom: 1px solid #bbb;
+        padding-bottom: 6px;
+        margin-bottom: 12px;
+        letter-spacing: 1px;
+    }
 
-.item-top {
-    display: flex;
-    justify-content: space-between;
-    border-bottom: 1px dotted #bbb;
-    padding-bottom: 2px;
-}
+    /* ===== ITEM ===== */
 
-.item-top span {
-    font-weight: 700;
-    font-size: 14px;
-}
+    .item {
+        margin-bottom: 12px;
+    }
 
-.desc {
-    font-size: 10px;
-    color: #555;
-    margin-top: 3px;
-    line-height: 1.3;
-}
+    .item-top {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px dotted #aaa;
+        padding-bottom: 4px;
+    }
 
-.weight {
-    font-size: 9px;
-    color: #777;
-}
+    .dish-name {
+        font-weight: 700;
+        font-size: 14px;
+    }
 
+    .price {
+        font-weight: 700;
+        font-size: 14px;
+    }
+
+    .desc {
+        font-size: 10px;
+        color: #444;
+        margin-top: 4px;
+        line-height: 1.4;
+    }
+
+    .weight {
+        font-size: 9px;
+        color: #666;
+        margin-top: 2px;
+    }
+
+    /* ===== PAGE NUMBER ===== */
+
+    @page {
+        @bottom-center {
+            content: counter(page);
+            font-size: 10px;
+            color: #666;
+        }
+    }
 
     </style>
     </head>
@@ -262,18 +281,20 @@ h1 {
         if section_df.empty:
             continue
 
-        html += f'<div class="section">'
-        html += f'<h1>{section}</h1>'
-        html += '<div class="columns">'
+        html += f'''
+        <div class="section">
+            <h1>{section}</h1>
+            <div class="section-line"></div>
+        '''
 
         for category, items in section_df.groupby("Category"):
             html += render_category(category, items)
 
-        html += '</div></div>'
+        html += '</div>'
 
     html += "</body></html>"
-    return html
 
+    return html
 
 # ======================
 # GENERATE PDF
