@@ -186,14 +186,12 @@ def build_html(df):
     /* ===== SECTION ===== */
 
     .section {
-        page-break-before: always;
-    }
-
-    .section:first-of-type {
-        page-break-before: auto;
+    margin-bottom: 40px;
+    break-inside: avoid;
     }
 
     h1 {
+        page-break-after: avoid;
         text-align: center;
         font-size: 30px;
         letter-spacing: 2px;
