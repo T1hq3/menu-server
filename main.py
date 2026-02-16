@@ -24,7 +24,9 @@ SAVE_PATH = "./exports"
 EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
 PDF_FILE = f"{SAVE_PATH}/menu.pdf"
 
-UPDATE_INTERVAL = 1800  # 30 хвилин
+UPDATE_INTERVAL = 1800  # 30 minutes
+
+update_lock = threading.Lock()
 
 STATUS = {
     "last_update": None,
@@ -32,6 +34,7 @@ STATUS = {
     "excel_downloaded": False,
     "pdf_generated": False,
     "pdf_ready": False,
+    "countdown": 0,
     "error": None
 }
 
@@ -45,104 +48,70 @@ logging.basicConfig(
 )
 
 # ======================
-# UPDATE MENU (DOWNLOAD + PDF)
+# LOGIN
 # ======================
 
-def update_menu():
-    logging.info("=== START UPDATE ===")
-
-    STATUS["error"] = None
-    STATUS["excel_downloaded"] = False
-    STATUS["pdf_generated"] = False
-    STATUS["pdf_ready"] = False
-
+def login_and_get_session():
     if not IDENTIFIER or not PASSWORD:
-        STATUS["error"] = "ENV variables missing"
-        logging.error("ENV variables missing")
-        return
-
-    os.makedirs(SAVE_PATH, exist_ok=True)
+        raise Exception("ENV variables missing")
 
     session = requests.Session()
 
+    response = session.post(
+        LOGIN_URL,
+        json={
+            "identifier": IDENTIFIER,
+            "password": PASSWORD
+        },
+        timeout=15
+    )
+
+    if response.status_code not in (200, 201):
+        raise Exception(f"Login failed: {response.status_code}")
+
     try:
-        # LOGIN
-        login_res = session.post(
-            LOGIN_URL,
-            json={
-                "identifier": IDENTIFIER,
-                "password": PASSWORD
-            },
-            timeout=15
-        )
+        data = response.json()
+        token = data.get("token")
+    except Exception:
+        raise Exception("Invalid login response")
 
-        if login_res.status_code not in (200, 201):
-            STATUS["error"] = f"Login failed: {login_res.status_code}"
-            logging.error(STATUS["error"])
-            return
+    if not token:
+        raise Exception("Token not received")
 
-        token = login_res.json().get("token")
-        if not token:
-            STATUS["error"] = "Token not received"
-            logging.error("Token not received")
-            return
+    session.headers.update({"authorization": token})
+    return session
 
-        session.headers.update({"authorization": token})
 
-        # DOWNLOAD EXCEL
-        export_res = session.get(EXPORT_URL, timeout=30)
+# ======================
+# DOWNLOAD EXCEL
+# ======================
 
-        if export_res.status_code != 200:
-            STATUS["error"] = f"Excel download failed: {export_res.status_code}"
-            logging.error(STATUS["error"])
-            return
+def download_excel(session):
+    response = session.get(EXPORT_URL, timeout=30)
 
-        with open(EXCEL_FILE, "wb") as f:
-            f.write(export_res.content)
+    if response.status_code != 200:
+        raise Exception(f"Excel download failed: {response.status_code}")
 
-        if os.path.exists(EXCEL_FILE) and os.path.getsize(EXCEL_FILE) > 0:
-            STATUS["excel_downloaded"] = True
-            logging.info("✔ Excel downloaded")
-        else:
-            STATUS["error"] = "Excel file corrupted"
-            return
+    with open(EXCEL_FILE, "wb") as f:
+        f.write(response.content)
 
-        # GENERATE PDF
-        generate_menu_pdf()
+    if not os.path.exists(EXCEL_FILE) or os.path.getsize(EXCEL_FILE) == 0:
+        raise Exception("Excel file corrupted")
 
-        if os.path.exists(PDF_FILE) and os.path.getsize(PDF_FILE) > 0:
-            STATUS["pdf_generated"] = True
-            STATUS["pdf_ready"] = True
-            logging.info("✔ PDF generated and ready")
-        else:
-            STATUS["error"] = "PDF generation failed"
-
-        # TIME TRACKING
-        STATUS["last_update"] = datetime.now()
-        STATUS["next_update"] = datetime.now() + timedelta(seconds=UPDATE_INTERVAL)
-
-        logging.info("=== UPDATE COMPLETE ===")
-
-    except Exception as e:
-        STATUS["error"] = str(e)
-        logging.exception("Critical error")
+    STATUS["excel_downloaded"] = True
+    logging.info("✔ Excel downloaded")
 
 
 # ======================
 # HTML BUILDER
 # ======================
+
 def build_html(df):
 
     SECTION_ORDER = [
-        "Сети",
-        "Роли",
-        "Кухня",
-        "Ланчі 11:00-17:00",
-        "Коктейльна карта",
-        "Гарячі напої",
-        "Безалкогольний бар",
-        "Алкогольний бар",
-        "Винна карта",
+        "Сети", "Роли", "Кухня", "Ланчі 11:00-17:00",
+        "Коктейльна карта", "Гарячі напої",
+        "Безалкогольний бар", "Алкогольний бар", "Винна карта",
     ]
 
     def render_category(category, items):
@@ -182,27 +151,13 @@ def build_html(df):
     <meta charset="utf-8">
     <style>
     @page { size: A4; margin: 25px 35px; }
-
     body { font-family: DejaVu Sans, sans-serif; }
 
     .section { margin-bottom: 40px; }
+    h1 { text-align: center; font-size: 28px; margin-bottom: 25px; }
 
-    h1 {
-        text-align: center;
-        font-size: 28px;
-        margin-bottom: 25px;
-        font-weight: 700;
-    }
-
-    .columns {
-        display: flex;
-        gap: 30px;
-        align-items: flex-start;
-    }
-
-    .column {
-        flex: 1;
-    }
+    .columns { display: flex; gap: 30px; }
+    .column { flex: 1; }
 
     .category {
         margin-bottom: 20px;
@@ -232,17 +187,8 @@ def build_html(df):
         font-size: 14px;
     }
 
-    .desc {
-        font-size: 10px;
-        color: #444;
-        margin-top: 2px;
-        line-height: 1.2;
-    }
-
-    .weight {
-        font-size: 9px;
-        color: #666;
-    }
+    .desc { font-size: 10px; color: #444; margin-top: 2px; }
+    .weight { font-size: 9px; color: #666; }
 
     </style>
     </head>
@@ -250,83 +196,86 @@ def build_html(df):
     """
 
     for section in SECTION_ORDER:
-
         section_df = df[df["Section"] == section]
         if section_df.empty:
             continue
 
         html += f'<div class="section"><h1>{section}</h1>'
-
-        # ===== Підготовка категорій з вагою =====
-
-        categories = []
+        html += '<div class="columns"><div class="column">'
 
         for category, items in section_df.groupby("Category"):
-            score = 2  # header weight
+            html += render_category(category, items)
 
-            for _, row in items.iterrows():
-                score += 3  # назва
-                if str(row.get("Description", "")).strip():
-                    score += 1
-                if str(row.get("Weight, g", "")).strip():
-                    score += 0.5
-
-            categories.append((category, items, score))
-
-        # ===== Балансування =====
-
-        left = []
-        right = []
-
-        left_height = 0
-        right_height = 0
-
-        for cat, items, score in categories:
-            if left_height <= right_height:
-                left.append((cat, items))
-                left_height += score
-            else:
-                right.append((cat, items))
-                right_height += score
-
-        # ===== HTML колонок =====
-
-        html += '<div class="columns">'
-
-        html += '<div class="column">'
-        for cat, items in left:
-            html += render_category(cat, items)
-        html += '</div>'
-
-        html += '<div class="column">'
-        for cat, items in right:
-            html += render_category(cat, items)
-        html += '</div>'
-
-        html += '</div></div>'
+        html += '</div></div></div>'
 
     html += "</body></html>"
-
     return html
 
+
 # ======================
-# PDF GENERATION
+# GENERATE PDF
 # ======================
 
 def generate_menu_pdf():
-
     if not os.path.exists(EXCEL_FILE):
-        STATUS["error"] = "Excel missing"
-        return
+        raise Exception("Excel missing")
 
     df = pd.read_excel(EXCEL_FILE)
     df = df[df["Section"].notna()]
     df = df.fillna("")
 
     html = build_html(df)
-    HTML(string=html).write_pdf(PDF_FILE)
 
-    logging.info("✔ MENU PDF GENERATED")
+    try:
+        HTML(string=html).write_pdf(PDF_FILE)
+    except Exception as e:
+        raise Exception(f"PDF generation error: {str(e)}")
+
+    if not os.path.exists(PDF_FILE) or os.path.getsize(PDF_FILE) == 0:
+        raise Exception("PDF generation failed")
+
+    STATUS["pdf_generated"] = True
+    STATUS["pdf_ready"] = True
+    logging.info("✔ PDF generated")
+
+
+# ======================
+# UPDATE MENU
+# ======================
+
+def update_menu():
+    if not update_lock.acquire(blocking=False):
+        logging.warning("Update already running")
+        return
+
+    logging.info("=== START UPDATE ===")
+
+    STATUS.update({
+        "error": None,
+        "excel_downloaded": False,
+        "pdf_generated": False,
+        "pdf_ready": False
+    })
+
+    try:
+        os.makedirs(SAVE_PATH, exist_ok=True)
+
+        with login_and_get_session() as session:
+            download_excel(session)
+
+        generate_menu_pdf()
+
+        STATUS["last_update"] = datetime.now()
+        STATUS["next_update"] = datetime.now() + timedelta(seconds=UPDATE_INTERVAL)
+
+        logging.info("=== UPDATE COMPLETE ===")
+
+    except Exception as e:
+        STATUS["error"] = str(e)
+        logging.exception("Update failed")
+
+    finally:
+        update_lock.release()
 
 
 # ======================
@@ -345,9 +294,9 @@ def index():
     </html>
     """)
 
+
 @app.route("/download")
 def download_pdf():
-
     if not STATUS["pdf_ready"]:
         return "PDF not ready yet", 503
 
@@ -358,11 +307,13 @@ def download_pdf():
         download_name="menu.pdf"
     )
 
+
 @app.route("/status")
 def status():
     return jsonify({
         "last_update": str(STATUS["last_update"]),
         "next_update": str(STATUS["next_update"]),
+        "countdown_seconds": STATUS["countdown"],
         "excel_downloaded": STATUS["excel_downloaded"],
         "pdf_generated": STATUS["pdf_generated"],
         "pdf_ready": STATUS["pdf_ready"],
@@ -375,14 +326,14 @@ def status():
 # ======================
 
 def background_worker():
-    while True:
-        update_menu()
+    update_menu()  # first run immediately
 
+    while True:
         for i in range(UPDATE_INTERVAL, 0, -1):
-            mins = i // 60
-            secs = i % 60
-            print(f"Next update in: {mins:02d}:{secs:02d}", end="\r")
+            STATUS["countdown"] = i
             time.sleep(1)
+
+        update_menu()
 
 
 # ======================
@@ -390,7 +341,6 @@ def background_worker():
 # ======================
 
 if __name__ == "__main__":
-
     t = threading.Thread(target=background_worker, daemon=True)
     t.start()
 
