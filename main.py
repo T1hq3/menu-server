@@ -181,7 +181,7 @@ def build_html(df):
     <style>
     @page {
         size: A4;
-        margin: 12mm 10mm;
+        margin: 8mm 8mm;
 
         @bottom-center {
             content: counter(page);
@@ -194,77 +194,87 @@ def build_html(df):
         font-family: "DejaVu Sans", sans-serif;
         color: #111;
         margin: 0;
-        font-size: 10px;
+        font-size: 9px;
     }
 
     .cover-page {
         page-break-after: always;
-        min-height: 260mm;
+        min-height: calc(297mm - 16mm);
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         text-align: center;
+        border: 1px solid #111;
+        border-radius: 10px;
+        background: linear-gradient(180deg, #ffffff 0%, #f1f1f1 100%);
     }
 
-    .cover-title {
-        font-size: 64px;
+    .menu-brand {
+        font-size: 46px;
         font-weight: 900;
-        letter-spacing: 2px;
         text-transform: uppercase;
+        letter-spacing: 2px;
         line-height: 1;
-        margin-bottom: 14px;
+        margin-bottom: 10px;
     }
 
-    .cover-subtitle {
-        font-size: 26px;
+    .menu-subbrand {
+        font-size: 14px;
         font-weight: 700;
-        letter-spacing: 1px;
+        color: #444;
         text-transform: uppercase;
-        color: #333;
+        letter-spacing: 1px;
     }
 
     .menu-columns {
         column-count: 2;
-        column-gap: 10mm;
+        column-gap: 7mm;
     }
 
     .section-block {
         break-inside: avoid;
-        margin: 0 0 8px 0;
+        margin: 0 0 5px 0;
     }
 
     .section-title {
-        font-size: 15px;
+        font-size: 12px;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: 0.8px;
         text-align: center;
-        margin: 0 0 7px 0;
-        border: 1px solid #777;
-        border-radius: 6px;
-        padding: 4px 6px;
-        background: #f2f2f2;
+        margin: 0 auto 5px auto;
+        border: 1px solid #555;
+        border-radius: 5px;
+        padding: 3px 5px;
+        background: #ececec;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .category-card {
-        border: 1px solid #888;
-        border-radius: 6px;
-        padding: 5px 6px;
-        margin: 0 0 6px 0;
+        border: 1px solid #8f8f8f;
+        border-radius: 5px;
+        padding: 4px 5px;
+        margin: 0 0 4px 0;
         break-inside: avoid;
         background: #fff;
     }
 
     .cat-header {
         font-size: 11px;
-        font-weight: 800;
+        font-weight: 900;
         text-transform: uppercase;
-        margin-bottom: 5px;
+        margin: 0 0 4px 0;
+        letter-spacing: 0.4px;
+        padding: 2px 4px;
+        border-left: 3px solid #111;
+        background: #f5f5f5;
+        border-radius: 3px;
     }
 
     .item {
-        margin-bottom: 4px;
+        margin-bottom: 3px;
     }
 
     .item-top {
@@ -276,36 +286,59 @@ def build_html(df):
     }
 
     .dish-name {
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 700;
         max-width: 78%;
     }
 
     .price {
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 800;
         white-space: nowrap;
-        margin-left: 8px;
+        margin-left: 6px;
     }
 
     .item-meta {
-        font-size: 8px;
+        font-size: 7px;
         color: #666;
         margin-top: 1px;
+        line-height: 1.15;
     }
 
     .item-desc {
-        font-size: 7.5px;
+        font-size: 6.8px;
         color: #555;
-        line-height: 1.2;
+        line-height: 1.15;
         margin-top: 1px;
     }
+
+    .item:last-child {
+        margin-bottom: 1px;
+    }
+
+    .item-top:last-child {
+        border-bottom: none;
+    }
+
+    .menu-columns,
+    .category-card,
+    .section-block,
+    .item {
+        orphans: 2;
+        widows: 2;
+    }
+
+    .menu-columns {
+        column-fill: auto;
+        min-height: 0;
+    }
+
     </style>
     </head>
     <body>
         <section class="cover-page">
-            <div class="cover-title">Sunrise</div>
-            <div class="cover-subtitle">Суші-бар</div>
+            <div class="menu-brand">Sunrise</div>
+            <div class="menu-subbrand">Офіційне меню ресторану</div>
         </section>
 
         <section class="menu-columns">
@@ -421,16 +454,76 @@ def update_menu():
 def index():
     return render_template_string("""
     <html>
-    <body style="text-align:center;margin-top:100px;font-family:Arial,sans-serif;">
-        <h1>Restaurant Menu</h1>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {
+                margin: 0;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(160deg, #f6f6f6 0%, #e8e8e8 100%);
+                font-family: Arial, sans-serif;
+                color: #111;
+            }
 
-        <form action="/download" method="get" style="margin-bottom:20px;">
-            <button type="submit" style="padding:12px 24px;font-size:16px;cursor:pointer;">
-                Download Latest PDF
-            </button>
-        </form>
+            .card {
+                width: min(520px, 90vw);
+                background: #fff;
+                border: 1px solid #d4d4d4;
+                border-radius: 16px;
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+                padding: 30px 24px;
+                text-align: center;
+            }
 
-        <a href="/status">System Status</a>
+            .subtitle {
+                font-size: 13px;
+                color: #666;
+                margin-top: 4px;
+                margin-bottom: 20px;
+                text-transform: uppercase;
+                letter-spacing: 0.7px;
+            }
+
+            .download-btn {
+                border: none;
+                background: #111;
+                color: #fff;
+                font-size: 16px;
+                border-radius: 10px;
+                padding: 12px 24px;
+                cursor: pointer;
+                font-weight: 700;
+                width: 100%;
+            }
+
+            .download-btn:hover {
+                background: #2d2d2d;
+            }
+
+            .link {
+                display: inline-block;
+                margin-top: 16px;
+                color: #3b3b3b;
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>Sunrise Menu</h1>
+            <div class="subtitle">Офіційне меню ресторану Sunrise</div>
+
+            <form action="/download" method="get" style="margin-bottom:6px;">
+                <button type="submit" class="download-btn">
+                    Завантажити актуальний PDF
+                </button>
+            </form>
+
+            <a href="/status" class="link">Статус системи</a>
+        </div>
     </body>
     </html>
     """)
