@@ -235,9 +235,11 @@ def build_html(df):
     .section-block {
         break-inside: avoid;
         margin: 0 0 5px 0;
+        text-align: center;
     }
 
     .section-title {
+        display: inline-block;
         font-size: 12px;
         font-weight: 900;
         text-transform: uppercase;
@@ -246,13 +248,14 @@ def build_html(df):
         margin: 0 auto 5px auto;
         border: 1px solid #555;
         border-radius: 5px;
-        padding: 3px 5px;
+        padding: 3px 14px;
         background: #ececec;
-        width: 100%;
+        min-width: 62%;
         box-sizing: border-box;
     }
 
     .category-card {
+        text-align: left;
         border: 1px solid #8f8f8f;
         border-radius: 5px;
         padding: 4px 5px;
