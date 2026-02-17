@@ -29,7 +29,7 @@ UPDATE_INTERVAL = 7200  # 2 hours
 
 update_lock = threading.Lock()
 
-@@ -111,162 +112,175 @@ def download_excel(session):
+ def download_excel(session):
         raise Exception(f"Excel download failed: {response.status_code}")
 
     with open(EXCEL_FILE, "wb") as f:
