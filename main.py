@@ -24,7 +24,7 @@ SAVE_PATH = "./exports"
 EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
 PDF_FILE = f"{SAVE_PATH}/menu.pdf"
 
-UPDATE_INTERVAL = 1800  # 30 minutes
+UPDATE_INTERVAL = 7200  # 2 hours
 
 update_lock = threading.Lock()
 
@@ -105,6 +105,9 @@ def login_and_get_session():
 # ======================
 
 def download_excel(session):
+    if os.path.exists(EXCEL_FILE):
+        os.remove(EXCEL_FILE)
+
     response = session.get(EXPORT_URL, timeout=30)
 
     if response.status_code != 200:
@@ -308,6 +311,9 @@ def generate_menu_pdf():
 
     html = build_html(df)
 
+    if os.path.exists(PDF_FILE):
+        os.remove(PDF_FILE)
+
     try:
         HTML(string=html).write_pdf(PDF_FILE)
     except Exception as e:
@@ -368,9 +374,15 @@ def update_menu():
 def index():
     return render_template_string("""
     <html>
-    <body style="text-align:center;margin-top:100px;">
+    <body style="text-align:center;margin-top:100px;font-family:Arial,sans-serif;">
         <h1>Restaurant Menu</h1>
-        <a href="/download">Download PDF</a><br><br>
+
+        <form action="/download" method="get" style="margin-bottom:20px;">
+            <button type="submit" style="padding:12px 24px;font-size:16px;cursor:pointer;">
+                Download Latest PDF
+            </button>
+        </form>
+
         <a href="/status">System Status</a>
     </body>
     </html>
