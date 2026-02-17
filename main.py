@@ -3,6 +3,7 @@ import requests
 import time
 import threading
 import os
+import html
 import pandas as pd
 from weasyprint import HTML
 from datetime import datetime, timedelta
@@ -133,9 +134,9 @@ def build_html(df):
     ]
 
     def render_item(row):
-        name = str(row.get("Dish name", "")).strip()
-        desc = str(row.get("Description", "")).strip()
-        price = str(row.get("Price", "")).strip()
+        name = html.escape(str(row.get("Dish name", "")).strip())
+        desc = html.escape(str(row.get("Description", "")).strip())
+        price = html.escape(str(row.get("Price", "")).strip())
         weight = str(row.get("Weight, g", "")).strip()
 
         if price == "0":
@@ -163,9 +164,10 @@ def build_html(df):
         '''
 
     def render_category(category, items):
+        safe_category = html.escape(str(category).strip())
         block = f'''
         <div class="category-card">
-            <div class="cat-header">{category}</div>
+            <div class="cat-header">{safe_category}</div>
         '''
 
         for _, row in items.iterrows():
@@ -379,6 +381,11 @@ def generate_menu_pdf():
         raise Exception("Excel missing")
 
     df = pd.read_excel(EXCEL_FILE)
+    required_columns = ["Section", "Category", "Dish name", "Description", "Price", "Weight, g"]
+    missing_columns = [column for column in required_columns if column not in df.columns]
+    if missing_columns:
+        raise Exception(f"Excel missing required columns: {', '.join(missing_columns)}")
+
     df = df[df["Section"].notna()]
     df = df.fillna("")
 
