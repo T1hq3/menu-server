@@ -29,7 +29,86 @@ UPDATE_INTERVAL = 7200  # 2 hours
 
 update_lock = threading.Lock()
 
+STATUS = {
+    "last_update": None,
+    "next_update": None,
+    "excel_downloaded": False,
+    "pdf_generated": False,
+    "pdf_ready": False,
+    "countdown": 0,
+    "error": None
+}
+
+# ======================
+# LOGGING
+# ======================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# ======================
+# LOGIN
+# ======================
+
+def login_and_get_session():
+    if not IDENTIFIER or not PASSWORD:
+        raise Exception("ENV variables missing")
+
+    session = requests.Session()
+
+    session.headers.update({
+        "accept": "*/*",
+        "content-type": "application/json",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "referer": "https://sunrise.choiceqr.com/admin/"
+    })
+
+    logging.info("Sending login request...")
+
+    response = session.post(
+        LOGIN_URL,
+        json={
+            "identifier": IDENTIFIER,
+            "password": PASSWORD
+        },
+        timeout=15
+    )
+
+    logging.info(f"Login status: {response.status_code}")
+
+    if response.status_code not in (200, 201):
+        raise Exception(f"Login failed: {response.status_code} | {response.text}")
+
+    try:
+        data = response.json()
+        token = data.get("token")
+    except Exception:
+        raise Exception("Invalid login response")
+
+    if not token:
+        raise Exception("Token not received")
+
+    session.headers.update({"authorization": token})
+    session.cookies.set("token", token)
+
+    logging.info("Login successful")
+
+    return session
+
+
+# ======================
+# DOWNLOAD EXCEL
+# ======================
+
 def download_excel(session):
+    if os.path.exists(EXCEL_FILE):
+        os.remove(EXCEL_FILE)
+
+    response = session.get(EXPORT_URL, timeout=30)
+
+    if response.status_code != 200:
         raise Exception(f"Excel download failed: {response.status_code}")
 
     with open(EXCEL_FILE, "wb") as f:
@@ -117,7 +196,7 @@ def build_html(df):
         font-family: "DejaVu Sans", sans-serif;
         color: #111;
         margin: 0;
-        font-size: 9px;
+        font-size: 10px;
     }
 
     .cover-page {
@@ -177,7 +256,7 @@ def build_html(df):
 
     .menu-columns {
         column-count: 2;
-        column-gap: 7mm;
+        column-gap: 6mm;
     }
 
     .category-card {
@@ -185,7 +264,9 @@ def build_html(df):
         border-radius: 5px;
         padding: 4px 5px;
         margin: 0 0 4px 0;
-        break-inside: avoid;
+        break-inside: auto;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
         background: #fff;
     }
 
@@ -202,20 +283,19 @@ def build_html(df):
     }
 
     .item {
-        margin-bottom: 3px;
+        margin-bottom: 4px;
+        break-inside: avoid;
     }
 
-@@ -293,114 +307,122 @@ def build_html(df):
-
     .item-meta {
-        font-size: 7px;
+        font-size: 8px;
         color: #666;
         margin-top: 1px;
         line-height: 1.15;
     }
 
     .item-desc {
-        font-size: 6.8px;
+        font-size: 7.6px;
         color: #555;
         line-height: 1.15;
         margin-top: 1px;
@@ -225,12 +305,30 @@ def build_html(df):
         margin-bottom: 1px;
     }
 
+    .item-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+    }
+
+    .dish-name {
+        font-size: 10.6px;
+        font-weight: 700;
+        line-height: 1.15;
+    }
+
+    .price {
+        font-size: 10.2px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
     .item-top:last-child {
         border-bottom: none;
     }
 
     .menu-columns,
-    .category-card,
     .item {
         orphans: 2;
         widows: 2;
