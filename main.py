@@ -404,13 +404,13 @@ def generate_menu_pdf():
     df = df[df["Section"].notna()]
     df = df.fillna("")
 
-    html = build_html(df)
+    html_content = build_html(df)
 
     if os.path.exists(PDF_FILE):
         os.remove(PDF_FILE)
 
     try:
-        HTML(string=html).write_pdf(PDF_FILE)
+        HTML(string=html_content).write_pdf(PDF_FILE)
     except Exception as e:
         raise Exception(f"PDF generation error: {str(e)}")
 
