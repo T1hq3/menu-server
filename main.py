@@ -29,86 +29,7 @@ UPDATE_INTERVAL = 7200  # 2 hours
 
 update_lock = threading.Lock()
 
-STATUS = {
-    "last_update": None,
-    "next_update": None,
-    "excel_downloaded": False,
-    "pdf_generated": False,
-    "pdf_ready": False,
-    "countdown": 0,
-    "error": None
-}
-
-# ======================
-# LOGGING
-# ======================
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
-# ======================
-# LOGIN
-# ======================
-
-def login_and_get_session():
-    if not IDENTIFIER or not PASSWORD:
-        raise Exception("ENV variables missing")
-
-    session = requests.Session()
-
-    session.headers.update({
-        "accept": "*/*",
-        "content-type": "application/json",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "referer": "https://sunrise.choiceqr.com/admin/"
-    })
-
-    logging.info("Sending login request...")
-
-    response = session.post(
-        LOGIN_URL,
-        json={
-            "identifier": IDENTIFIER,
-            "password": PASSWORD
-        },
-        timeout=15
-    )
-
-    logging.info(f"Login status: {response.status_code}")
-
-    if response.status_code not in (200, 201):
-        raise Exception(f"Login failed: {response.status_code} | {response.text}")
-
-    try:
-        data = response.json()
-        token = data.get("token")
-    except Exception:
-        raise Exception("Invalid login response")
-
-    if not token:
-        raise Exception("Token not received")
-
-    session.headers.update({"authorization": token})
-    session.cookies.set("token", token)
-
-    logging.info("Login successful")
-
-    return session
-
-
-# ======================
-# DOWNLOAD EXCEL
-# ======================
-
-def download_excel(session):
-    if os.path.exists(EXCEL_FILE):
-        os.remove(EXCEL_FILE)
-
-    response = session.get(EXPORT_URL, timeout=30)
-
-    if response.status_code != 200:
+@@ -111,162 +112,175 @@ def download_excel(session):
         raise Exception(f"Excel download failed: {response.status_code}")
 
     with open(EXCEL_FILE, "wb") as f:
@@ -152,7 +73,7 @@ def build_html(df):
 
         desc_html = f'<div class="item-desc">{desc}</div>' if desc else ""
 
-        return f'''
+        return f"""
         <div class="item">
             <div class="item-top">
                 <span class="dish-name">{name}</span>
@@ -161,14 +82,14 @@ def build_html(df):
             {meta_html}
             {desc_html}
         </div>
-        '''
+        """
 
     def render_category(category, items):
         safe_category = html.escape(str(category).strip())
-        block = f'''
+        block = f"""
         <div class="category-card">
             <div class="cat-header">{safe_category}</div>
-        '''
+        """
 
         for _, row in items.iterrows():
             block += render_item(row)
@@ -199,52 +120,64 @@ def build_html(df):
         font-size: 9px;
     }
 
-    .menu-header {
-        margin: 0 0 6px 0;
-        padding: 5px 6px;
+    .cover-page {
+        page-break-after: always;
+        min-height: calc(297mm - 16mm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .cover-card {
+        width: 100%;
         border: 1px solid #111;
-        border-radius: 8px;
+        border-radius: 10px;
         text-align: center;
-        background: linear-gradient(180deg, #fff 0%, #f1f1f1 100%);
+        padding: 14px 10px;
+        background: linear-gradient(180deg, #ffffff 0%, #f1f1f1 100%);
     }
 
     .menu-brand {
-        font-size: 24px;
+        font-size: 46px;
         font-weight: 900;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 2px;
+        letter-spacing: 2px;
+        line-height: 1;
+        margin-bottom: 10px;
     }
 
     .menu-subbrand {
-        font-size: 10px;
+        font-size: 14px;
         font-weight: 700;
         color: #444;
         text-transform: uppercase;
-        letter-spacing: 0.6px;
+        letter-spacing: 1px;
+    }
+
+    .section-page {
+        page-break-before: always;
+    }
+
+    .section-page:first-of-type {
+        page-break-before: auto;
+    }
+
+    .section-title {
+        font-size: 16px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        text-align: center;
+        margin: 0 0 8px 0;
+        border: 1px solid #555;
+        border-radius: 6px;
+        padding: 4px 8px;
+        background: #ececec;
     }
 
     .menu-columns {
         column-count: 2;
         column-gap: 7mm;
-    }
-
-    .section-block {
-        break-inside: avoid;
-        margin: 0 0 5px 0;
-    }
-
-    .section-title {
-        font-size: 12px;
-        font-weight: 900;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        text-align: center;
-        margin: 0 0 5px 0;
-        border: 1px solid #555;
-        border-radius: 5px;
-        padding: 3px 5px;
-        background: #ececec;
     }
 
     .category-card {
@@ -272,26 +205,7 @@ def build_html(df):
         margin-bottom: 3px;
     }
 
-    .item-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        border-bottom: 1px dotted #999;
-        padding-bottom: 1px;
-    }
-
-    .dish-name {
-        font-size: 9px;
-        font-weight: 700;
-        max-width: 78%;
-    }
-
-    .price {
-        font-size: 9px;
-        font-weight: 800;
-        white-space: nowrap;
-        margin-left: 6px;
-    }
+@@ -293,114 +307,122 @@ def build_html(df):
 
     .item-meta {
         font-size: 7px;
@@ -317,7 +231,6 @@ def build_html(df):
 
     .menu-columns,
     .category-card,
-    .section-block,
     .item {
         orphans: 2;
         widows: 2;
@@ -331,12 +244,12 @@ def build_html(df):
     </style>
     </head>
     <body>
-        <section class="menu-header">
-            <div class="menu-brand">Sunrise Menu</div>
-            <div class="menu-subbrand">Офіційне меню ресторану Sunrise</div>
+        <section class="cover-page">
+            <div class="cover-card">
+                <div class="menu-brand">Sunrise Menu</div>
+                <div class="menu-subbrand">Офіційне меню ресторану Sunrise</div>
+            </div>
         </section>
-
-        <section class="menu-columns">
     """
 
     ordered_df = []
@@ -353,18 +266,22 @@ def build_html(df):
             ordered_df.append((section, section_df))
 
     for section, section_df in ordered_df:
-        html_content += f'''
-        <div class="section-block">
-            <div class="section-title">{section}</div>
-        '''
+        safe_section = html.escape(str(section).strip())
+        html_content += f"""
+        <section class="section-page">
+            <div class="section-title">{safe_section}</div>
+            <div class="menu-columns">
+        """
 
         for category, items in section_df.groupby("Category", sort=False):
             html_content += render_category(category, items)
 
-        html_content += "</div>"
+        html_content += """
+            </div>
+        </section>
+        """
 
     html_content += """
-        </section>
     </body>
     </html>
     """
@@ -405,8 +322,7 @@ def generate_menu_pdf():
     STATUS["pdf_generated"] = True
     STATUS["pdf_ready"] = True
     logging.info("✔ PDF generated")
-
-
+    
 # ======================
 # UPDATE MENU
 # ======================
