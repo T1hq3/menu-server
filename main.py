@@ -57,7 +57,6 @@ def login_and_get_session():
 
     session = requests.Session()
 
-    # Повні headers як у робочому скрипті
     session.headers.update({
         "accept": "*/*",
         "content-type": "application/json",
@@ -90,14 +89,12 @@ def login_and_get_session():
     if not token:
         raise Exception("Token not received")
 
-    # Дуже важливо
     session.headers.update({"authorization": token})
     session.cookies.set("token", token)
 
     logging.info("Login successful")
 
     return session
-
 
 
 # ======================
@@ -129,44 +126,52 @@ def download_excel(session):
 
 def build_html(df):
 
-    SECTION_ORDER = [
+    section_order = [
         "Сети", "Роли", "Кухня", "Ланчі 11:00-17:00",
         "Коктейльна карта", "Гарячі напої",
         "Безалкогольний бар", "Алкогольний бар", "Винна карта",
     ]
 
+    def render_item(row):
+        name = str(row.get("Dish name", "")).strip()
+        desc = str(row.get("Description", "")).strip()
+        price = str(row.get("Price", "")).strip()
+        weight = str(row.get("Weight, g", "")).strip()
+
+        if price == "0":
+            price = ""
+
+        meta = []
+        if weight and weight.lower() != "nan":
+            meta.append(f"{weight} г")
+
+        meta_html = ""
+        if meta:
+            meta_html = f'<div class="item-meta">{" • ".join(meta)}</div>'
+
+        desc_html = f'<div class="item-desc">{desc}</div>' if desc else ""
+
+        return f'''
+        <div class="item">
+            <div class="item-top">
+                <span class="dish-name">{name}</span>
+                <span class="price">{price}</span>
+            </div>
+            {meta_html}
+            {desc_html}
+        </div>
+        '''
+
     def render_category(category, items):
         block = f'''
-        <div class="category">
+        <div class="category-card">
             <div class="cat-header">{category}</div>
         '''
 
         for _, row in items.iterrows():
-            name = str(row.get("Dish name", "")).strip()
-            desc = str(row.get("Description", "")).strip()
-            price = str(row.get("Price", "")).strip()
-            weight = str(row.get("Weight, g", "")).strip()
+            block += render_item(row)
 
-            if price == "0":
-                price = ""
-
-            block += f'''
-            <div class="item">
-                <div class="item-top">
-                    <span class="dish-name">{name}</span>
-                    <span class="price">{price}</span>
-                </div>
-            '''
-
-            if desc:
-                block += f'<div class="desc">{desc}</div>'
-
-            if weight and weight.lower() != "nan":
-                block += f'<div class="weight">{weight} г</div>'
-
-            block += '</div>'
-
-        block += '</div>'
+        block += "</div>"
         return block
 
     html = """
@@ -174,128 +179,170 @@ def build_html(df):
     <head>
     <meta charset="utf-8">
     <style>
-
     @page {
         size: A4;
-        margin: 40px 50px;
+        margin: 12mm 10mm;
+
+        @bottom-center {
+            content: counter(page);
+            font-size: 8px;
+            color: #777;
+        }
     }
 
     body {
         font-family: "DejaVu Sans", sans-serif;
-        font-size: 12px;
         color: #111;
+        margin: 0;
+        font-size: 10px;
     }
 
-    /* ===== SECTION ===== */
-
-    .section {
-    margin-bottom: 40px;
-    break-inside: avoid;
-    }
-
-    h1 {
-        page-break-after: avoid;
+    .cover-page {
+        page-break-after: always;
+        min-height: 260mm;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
         text-align: center;
-        font-size: 30px;
+    }
+
+    .cover-title {
+        font-size: 64px;
+        font-weight: 900;
         letter-spacing: 2px;
-        margin-bottom: 8px;
         text-transform: uppercase;
+        line-height: 1;
+        margin-bottom: 14px;
     }
 
-    .section-line {
-        width: 90px;
-        height: 1px;
-        background: #111;
-        margin: 0 auto 35px auto;
+    .cover-subtitle {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #333;
     }
 
-    /* ===== CATEGORY ===== */
+    .menu-columns {
+        column-count: 2;
+        column-gap: 10mm;
+    }
 
-    .category {
-        margin-bottom: 30px;
+    .section-block {
         break-inside: avoid;
+        margin: 0 0 8px 0;
+    }
+
+    .section-title {
+        font-size: 15px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        text-align: center;
+        margin: 0 0 7px 0;
+        border: 1px solid #777;
+        border-radius: 6px;
+        padding: 4px 6px;
+        background: #f2f2f2;
+    }
+
+    .category-card {
+        border: 1px solid #888;
+        border-radius: 6px;
+        padding: 5px 6px;
+        margin: 0 0 6px 0;
+        break-inside: avoid;
+        background: #fff;
     }
 
     .cat-header {
-        font-size: 16px;
-        font-weight: 700;
+        font-size: 11px;
+        font-weight: 800;
         text-transform: uppercase;
-        border-bottom: 1px solid #bbb;
-        padding-bottom: 6px;
-        margin-bottom: 12px;
-        letter-spacing: 1px;
+        margin-bottom: 5px;
     }
 
-    /* ===== ITEM ===== */
-
     .item {
-        margin-bottom: 12px;
+        margin-bottom: 4px;
     }
 
     .item-top {
         display: flex;
         justify-content: space-between;
-        border-bottom: 1px dotted #aaa;
-        padding-bottom: 4px;
+        align-items: flex-end;
+        border-bottom: 1px dotted #999;
+        padding-bottom: 1px;
     }
 
     .dish-name {
+        font-size: 10px;
         font-weight: 700;
-        font-size: 14px;
+        max-width: 78%;
     }
 
     .price {
-        font-weight: 700;
-        font-size: 14px;
-    }
-
-    .desc {
         font-size: 10px;
-        color: #444;
-        margin-top: 4px;
-        line-height: 1.4;
+        font-weight: 800;
+        white-space: nowrap;
+        margin-left: 8px;
     }
 
-    .weight {
-        font-size: 9px;
+    .item-meta {
+        font-size: 8px;
         color: #666;
-        margin-top: 2px;
+        margin-top: 1px;
     }
 
-    /* ===== PAGE NUMBER ===== */
-
-    @page {
-        @bottom-center {
-            content: counter(page);
-            font-size: 10px;
-            color: #666;
-        }
+    .item-desc {
+        font-size: 7.5px;
+        color: #555;
+        line-height: 1.2;
+        margin-top: 1px;
     }
-
     </style>
     </head>
     <body>
+        <section class="cover-page">
+            <div class="cover-title">Sunrise</div>
+            <div class="cover-subtitle">Суші-бар</div>
+        </section>
+
+        <section class="menu-columns">
     """
 
-    for section in SECTION_ORDER:
-        section_df = df[df["Section"] == section]
-        if section_df.empty:
-            continue
+    ordered_df = []
 
+    for section in section_order:
+        section_df = df[df["Section"] == section]
+        if not section_df.empty:
+            ordered_df.append((section, section_df))
+
+    remaining_sections = [s for s in df["Section"].dropna().unique().tolist() if s not in section_order]
+    for section in remaining_sections:
+        section_df = df[df["Section"] == section]
+        if not section_df.empty:
+            ordered_df.append((section, section_df))
+
+    for section, section_df in ordered_df:
         html += f'''
-        <div class="section">
-            <h1>{section}</h1>
-            <div class="section-line"></div>
+        <div class="section-block">
+            <div class="section-title">{section}</div>
         '''
 
-        for category, items in section_df.groupby("Category"):
+        for category, items in section_df.groupby("Category", sort=False):
             html += render_category(category, items)
 
-        html += '</div>'
+        html += "</div>"
 
-    html += "</body></html>"
+    html += """
+        </section>
+    </body>
+    </html>
+    """
 
     return html
+
 
 # ======================
 # GENERATE PDF
