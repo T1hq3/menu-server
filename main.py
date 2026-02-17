@@ -176,7 +176,7 @@ def build_html(df):
         block += "</div>"
         return block
 
-    html = """
+    html_content = """
     <html>
     <head>
     <meta charset="utf-8">
@@ -353,23 +353,23 @@ def build_html(df):
             ordered_df.append((section, section_df))
 
     for section, section_df in ordered_df:
-        html += f'''
+        html_content += f'''
         <div class="section-block">
             <div class="section-title">{section}</div>
         '''
 
         for category, items in section_df.groupby("Category", sort=False):
-            html += render_category(category, items)
+            html_content += render_category(category, items)
 
-        html += "</div>"
+        html_content += "</div>"
 
-    html += """
+    html_content += """
         </section>
     </body>
     </html>
     """
 
-    return html
+    return html_content
 
 
 # ======================
