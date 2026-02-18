@@ -166,14 +166,26 @@ def build_html(df):
         safe_category = html.escape(str(category).strip())
 
         block = f"""
-        <div class="category-card">
-            <div class="cat-header">{safe_category}</div>
+        <table class="category-card">
+            <thead>
+                <tr>
+                    <th class="cat-header">{safe_category}</th>
+                </tr>
+            </thead>
+            <tbody>
         """
 
         for _, row in items.iterrows():
-            block += render_item(row)
+            block += f"""
+                <tr class="item-row">
+                    <td>{render_item(row)}</td>
+                </tr>
+            """
 
-        block += "</div>"
+        block += """
+            </tbody>
+        </table>
+        """
 
         return block
 
@@ -261,26 +273,55 @@ def build_html(df):
     }
 
     .category-card {
+        width: 100%;
         border: 1px solid #8f8f8f;
         border-radius: 5px;
-        padding: 4px 5px;
         margin: 0 0 4px 0;
-        break-inside: avoid;
-        page-break-inside: avoid;
+        border-collapse: separate;
+        border-spacing: 0;
+        break-inside: auto;
+        page-break-inside: auto;
         box-decoration-break: clone;
         -webkit-box-decoration-break: clone;
         background: #fff;
+        overflow: hidden;
+    }
+
+    .category-card thead {
+        display: table-header-group;
+    }
+
+    .category-card tbody {
+        display: table-row-group;
     }
 
     .cat-header {
         font-size: 11px;
         font-weight: 900;
         text-transform: uppercase;
-        margin: 0 0 4px 0;
+        margin: 0;
         letter-spacing: 0.4px;
         padding: 2px 4px;
         background: #f5f5f5;
-        border-radius: 3px;
+        border-radius: 0;
+        text-align: left;
+    }
+
+    .item-row {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .item-row td {
+        padding: 0 5px;
+    }
+
+    .item-row:first-child td {
+        padding-top: 4px;
+    }
+
+    .item-row:last-child td {
+        padding-bottom: 4px;
     }
 
     .item {
