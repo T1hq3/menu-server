@@ -15,15 +15,28 @@ import logging
 
 app = Flask(__name__)
 
-IDENTIFIER = os.getenv("IDENTIFIER")
-PASSWORD = os.getenv("PASSWORD")
-
-LOGIN_URL = "https://sunrise.choiceqr.com/api/auth/local"
-EXPORT_URL = "https://sunrise.choiceqr.com/api/export/xlsx"
-
 SAVE_PATH = "./exports"
-EXCEL_FILE = f"{SAVE_PATH}/menu.xlsx"
-PDF_FILE = f"{SAVE_PATH}/menu.pdf"
+
+VENUES = {
+    "sunrise": {
+        "name": "Sunrise",
+        "subbrand": "Офіційне меню ресторану Sunrise",
+        "identifier": os.getenv("SUNRISE_IDENTIFIER") or os.getenv("IDENTIFIER"),
+        "password": os.getenv("SUNRISE_PASSWORD") or os.getenv("PASSWORD"),
+        "login_url": "https://sunrise.choiceqr.com/api/auth/local",
+        "export_url": "https://sunrise.choiceqr.com/api/export/xlsx",
+        "referer": "https://sunrise.choiceqr.com/admin/",
+    },
+    "babuin": {
+        "name": "BABUIN",
+        "subbrand": "Офіційне меню ресторану BABUIN",
+        "identifier": os.getenv("BABUIN_IDENTIFIER"),
+        "password": os.getenv("BABUIN_PASSWORD"),
+        "login_url": "https://babuin.choiceqr.com/api/auth/local",
+        "export_url": "https://babuin.choiceqr.com/api/export/xlsx",
+        "referer": "https://babuin.choiceqr.com/admin/",
+    },
+}
 
 UPDATE_INTERVAL = 7200  # 2 hours
 
@@ -32,12 +45,18 @@ update_lock = threading.Lock()
 STATUS = {
     "last_update": None,
     "next_update": None,
-    "excel_downloaded": False,
-    "pdf_generated": False,
-    "pdf_ready": False,
     "countdown": 0,
-    "error": None
+    "venues": {
+        key: {
+            "excel_downloaded": False,
+            "pdf_generated": False,
+            "pdf_ready": False,
+            "error": None,
+        }
+        for key in VENUES
+    }
 }
+
 
 # ======================
 # LOGGING
@@ -48,12 +67,24 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
+def venue_paths(venue_key):
+    venue_dir = os.path.join(SAVE_PATH, venue_key)
+    return {
+        "dir": venue_dir,
+        "excel": os.path.join(venue_dir, "menu.xlsx"),
+        "pdf": os.path.join(venue_dir, "menu.pdf"),
+    }
+
+
 # ======================
 # LOGIN
 # ======================
 
-def login_and_get_session():
-    if not IDENTIFIER or not PASSWORD:
+def login_and_get_session(venue_key):
+    venue = VENUES[venue_key]
+
+    if not venue["identifier"] or not venue["password"]:
         raise Exception("ENV variables missing")
 
     session = requests.Session()
@@ -62,21 +93,21 @@ def login_and_get_session():
         "accept": "*/*",
         "content-type": "application/json",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "referer": "https://sunrise.choiceqr.com/admin/"
+        "referer": venue["referer"],
     })
 
-    logging.info("Sending login request...")
+    logging.info(f"[{venue_key}] Sending login request...")
 
     response = session.post(
-        LOGIN_URL,
+        venue["login_url"],
         json={
-            "identifier": IDENTIFIER,
-            "password": PASSWORD
+            "identifier": venue["identifier"],
+            "password": venue["password"],
         },
         timeout=15
     )
 
-    logging.info(f"Login status: {response.status_code}")
+    logging.info(f"[{venue_key}] Login status: {response.status_code}")
 
     if response.status_code not in (200, 201):
         raise Exception(f"Login failed: {response.status_code} | {response.text}")
@@ -93,7 +124,7 @@ def login_and_get_session():
     session.headers.update({"authorization": token})
     session.cookies.set("token", token)
 
-    logging.info("Login successful")
+    logging.info(f"[{venue_key}] Login successful")
 
     return session
 
@@ -102,36 +133,41 @@ def login_and_get_session():
 # DOWNLOAD EXCEL
 # ======================
 
-def download_excel(session):
-    if os.path.exists(EXCEL_FILE):
-        os.remove(EXCEL_FILE)
+def download_excel(session, venue_key):
+    paths = venue_paths(venue_key)
+    venue = VENUES[venue_key]
 
-    response = session.get(EXPORT_URL, timeout=30)
+    if os.path.exists(paths["excel"]):
+        os.remove(paths["excel"])
+
+    response = session.get(venue["export_url"], timeout=30)
 
     if response.status_code != 200:
         raise Exception(f"Excel download failed: {response.status_code}")
 
-    with open(EXCEL_FILE, "wb") as f:
+    with open(paths["excel"], "wb") as f:
         f.write(response.content)
 
-    if not os.path.exists(EXCEL_FILE) or os.path.getsize(EXCEL_FILE) == 0:
+    if not os.path.exists(paths["excel"]) or os.path.getsize(paths["excel"]) == 0:
         raise Exception("Excel file corrupted")
 
-    STATUS["excel_downloaded"] = True
-    logging.info("✔ Excel downloaded")
+    STATUS["venues"][venue_key]["excel_downloaded"] = True
+    logging.info(f"[{venue_key}] ✔ Excel downloaded")
 
 
 # ======================
 # HTML BUILDER
 # ======================
 
-def build_html(df):
+def build_html(df, venue_key):
+    venue = VENUES[venue_key]
 
     section_order = [
         "Сети", "Роли", "Кухня", "Ланчі 11:00-17:00",
         "Коктейльна карта", "Гарячі напої",
         "Безалкогольний бар", "Алкогольний бар", "Винна карта",
     ]
+
     def render_item(row):
         name = html.escape(str(row.get("Dish name", "")).strip())
         desc = html.escape(str(row.get("Description", "")).strip())
@@ -196,72 +232,72 @@ def build_html(df):
 
         return block
 
-    html_content = """
+    html_content = f"""
     <html>
     <head>
     <meta charset="utf-8">
     <style>
-    @page {
+    @page {{
         size: A4;
         margin: 8mm 8mm;
 
-        @bottom-center {
+        @bottom-center {{
             content: counter(page);
             font-size: 8px;
             color: #777;
-        }
-    }
+        }}
+    }}
 
-    body {
+    body {{
         font-family: "DejaVu Sans", sans-serif;
         color: #111;
         margin: 0;
         font-size: 10px;
-    }
+    }}
 
-    .cover-page {
+    .cover-page {{
         page-break-after: always;
         min-height: calc(297mm - 16mm);
         display: flex;
         align-items: center;
         justify-content: center;
-    }
+    }}
 
-    .cover-card {
+    .cover-card {{
         width: 100%;
         border: 1px solid #111;
         border-radius: 10px;
         text-align: center;
         padding: 14px 10px;
         background: linear-gradient(180deg, #ffffff 0%, #f1f1f1 100%);
-    }
+    }}
 
-    .menu-brand {
+    .menu-brand {{
         font-size: 46px;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: 2px;
         line-height: 1;
         margin-bottom: 10px;
-    }
+    }}
 
-    .menu-subbrand {
+    .menu-subbrand {{
         font-size: 14px;
         font-weight: 700;
         color: #444;
         text-transform: uppercase;
         letter-spacing: 1px;
-    }
+    }}
 
-    .section-page {
+    .section-page {{
         page-break-before: always;
-    }
+    }}
 
-    .section-page:first-of-type {
+    .section-page:first-of-type {{
         page-break-before: auto;
-    }
+    }}
 
-    .section-title {
+    .section-title {{
         font-size: 16px;
         font-weight: 900;
         text-transform: uppercase;
@@ -272,14 +308,14 @@ def build_html(df):
         border-radius: 6px;
         padding: 4px 8px;
         background: #ececec;
-    }
+    }}
 
-    .menu-columns {
+    .menu-columns {{
         column-count: 2;
         column-gap: 6mm;
-    }
+    }}
 
-    .category-card {
+    .category-card {{
         width: 100%;
         border-collapse: separate;
         border-spacing: 0;
@@ -292,13 +328,13 @@ def build_html(df):
         box-decoration-break: clone;
         -webkit-box-decoration-break: clone;
         background: #fff;
-    }
+    }}
 
-    .category-card thead {
+    .category-card thead {{
         display: table-header-group;
-    }
+    }}
 
-    .cat-header {
+    .cat-header {{
         text-align: left;
         font-size: 11px;
         font-weight: 900;
@@ -307,34 +343,34 @@ def build_html(df):
         padding: 2px 4px;
         background: #f5f5f5;
         border-radius: 3px;
-    }
+    }}
 
-    .category-card td {
+    .category-card td {{
         padding: 0;
-    }
+    }}
 
-    .item {
+    .item {{
         margin-bottom: 4px;
         break-inside: avoid;
-    }
+    }}
 
-    .item-desc {
+    .item-desc {{
         font-size: 7.6px;
         color: #555;
         line-height: 1.15;
         margin-top: 1px;
         flex: 1 1 auto;
         min-width: 0;
-    }
+    }}
 
-    .item-details {
+    .item-details {{
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
         gap: 8px;
-    }
+    }}
 
-    .item-weight {
+    .item-weight {{
         font-size: 8px;
         color: #666;
         margin-top: 1px;
@@ -342,59 +378,59 @@ def build_html(df):
         text-align: right;
         white-space: nowrap;
         flex: 0 0 auto;
-    }
+    }}
 
-    .item:last-child {
+    .item:last-child {{
         margin-bottom: 1px;
-    }
+    }}
 
-    .item-top {
+    .item-top {{
         display: flex;
         align-items: baseline;
         gap: 6px;
-    }
+    }}
 
-    .dots {
+    .dots {{
         flex: 1 1 auto;
         border-bottom: 1px dotted #666;
         transform: translateY(-2px);
         min-width: 10px;
-    }
+    }}
 
-    .dish-name {
+    .dish-name {{
         font-size: 10.6px;
         font-weight: 700;
         line-height: 1.15;
-    }
+    }}
 
-    .price {
+    .price {{
         font-size: 10.2px;
         font-weight: 700;
         white-space: nowrap;
-    }
+    }}
 
-    .item-top:last-child {
+    .item-top:last-child {{
         border-bottom: none;
-    }
+    }}
 
     .menu-columns,
-    .item {
+    .item {{
         orphans: 2;
         widows: 2;
-    }
+    }}
 
-    .menu-columns {
+    .menu-columns {{
         column-fill: auto;
         min-height: 0;
-    }
+    }}
 
     </style>
     </head>
     <body>
         <section class="cover-page">
             <div class="cover-card">
-                <div class="menu-brand">Sunrise Menu</div>
-                <div class="menu-subbrand">Офіційне меню ресторану Sunrise</div>
+                <div class="menu-brand">{html.escape(venue['name'])} Menu</div>
+                <div class="menu-subbrand">{html.escape(venue['subbrand'])}</div>
             </div>
         </section>
     """
@@ -440,11 +476,13 @@ def build_html(df):
 # GENERATE PDF
 # ======================
 
-def generate_menu_pdf():
-    if not os.path.exists(EXCEL_FILE):
+def generate_menu_pdf(venue_key):
+    paths = venue_paths(venue_key)
+
+    if not os.path.exists(paths["excel"]):
         raise Exception("Excel missing")
 
-    df = pd.read_excel(EXCEL_FILE)
+    df = pd.read_excel(paths["excel"])
     required_columns = ["Section", "Category", "Dish name", "Description", "Price", "Weight, g"]
     missing_columns = [column for column in required_columns if column not in df.columns]
     if missing_columns:
@@ -453,26 +491,45 @@ def generate_menu_pdf():
     df = df[df["Section"].notna()]
     df = df.fillna("")
 
-    html_content = build_html(df)
+    html_content = build_html(df, venue_key)
 
-    if os.path.exists(PDF_FILE):
-        os.remove(PDF_FILE)
+    if os.path.exists(paths["pdf"]):
+        os.remove(paths["pdf"])
 
     try:
-        HTML(string=html_content).write_pdf(PDF_FILE)
+        HTML(string=html_content).write_pdf(paths["pdf"])
     except Exception as e:
         raise Exception(f"PDF generation error: {str(e)}")
 
-    if not os.path.exists(PDF_FILE) or os.path.getsize(PDF_FILE) == 0:
+    if not os.path.exists(paths["pdf"]) or os.path.getsize(paths["pdf"]) == 0:
         raise Exception("PDF generation failed")
 
-    STATUS["pdf_generated"] = True
-    STATUS["pdf_ready"] = True
-    logging.info("✔ PDF generated")
-    
+    STATUS["venues"][venue_key]["pdf_generated"] = True
+    STATUS["venues"][venue_key]["pdf_ready"] = True
+    logging.info(f"[{venue_key}] ✔ PDF generated")
+
+
 # ======================
 # UPDATE MENU
 # ======================
+
+def update_venue_menu(venue_key):
+    venue_status = STATUS["venues"][venue_key]
+    venue_status.update({
+        "error": None,
+        "excel_downloaded": False,
+        "pdf_generated": False,
+        "pdf_ready": False,
+    })
+
+    paths = venue_paths(venue_key)
+    os.makedirs(paths["dir"], exist_ok=True)
+
+    with login_and_get_session(venue_key) as session:
+        download_excel(session, venue_key)
+
+    generate_menu_pdf(venue_key)
+
 
 def update_menu():
     if not update_lock.acquire(blocking=False):
@@ -481,29 +538,20 @@ def update_menu():
 
     logging.info("=== START UPDATE ===")
 
-    STATUS.update({
-        "error": None,
-        "excel_downloaded": False,
-        "pdf_generated": False,
-        "pdf_ready": False
-    })
-
     try:
         os.makedirs(SAVE_PATH, exist_ok=True)
 
-        with login_and_get_session() as session:
-            download_excel(session)
-
-        generate_menu_pdf()
+        for venue_key in VENUES:
+            try:
+                update_venue_menu(venue_key)
+            except Exception as e:
+                STATUS["venues"][venue_key]["error"] = str(e)
+                logging.exception(f"[{venue_key}] Update failed")
 
         STATUS["last_update"] = datetime.now()
         STATUS["next_update"] = datetime.now() + timedelta(seconds=UPDATE_INTERVAL)
 
         logging.info("=== UPDATE COMPLETE ===")
-
-    except Exception as e:
-        STATUS["error"] = str(e)
-        logging.exception("Update failed")
 
     finally:
         update_lock.release()
@@ -560,6 +608,7 @@ def index():
                 cursor: pointer;
                 font-weight: 700;
                 width: 100%;
+                margin-bottom: 10px;
             }
 
             .download-btn:hover {
@@ -576,12 +625,18 @@ def index():
     </head>
     <body>
         <div class="card">
-            <h1>Sunrise Menu</h1>
-            <div class="subtitle">Офіційне меню ресторану Sunrise</div>
+            <h1>ChoiceQR Menu Export</h1>
+            <div class="subtitle">Офіційні PDF меню закладів</div>
 
-            <form action="/download" method="get" style="margin-bottom:6px;">
+            <form action="/download/sunrise" method="get" style="margin-bottom:6px;">
                 <button type="submit" class="download-btn">
-                    Завантажити актуальний PDF
+                    Завантажити PDF — Sunrise
+                </button>
+            </form>
+
+            <form action="/download/babuin" method="get" style="margin-bottom:6px;">
+                <button type="submit" class="download-btn">
+                    Завантажити PDF — BABUIN
                 </button>
             </form>
 
@@ -592,16 +647,21 @@ def index():
     """)
 
 
-@app.route("/download")
-def download_pdf():
-    if not STATUS["pdf_ready"]:
+@app.route("/download/<venue_key>")
+def download_pdf(venue_key):
+    if venue_key not in VENUES:
+        return "Unknown venue", 404
+
+    if not STATUS["venues"][venue_key]["pdf_ready"]:
         return "PDF not ready yet", 503
 
+    paths = venue_paths(venue_key)
+
     return send_file(
-        PDF_FILE,
+        paths["pdf"],
         mimetype="application/pdf",
         as_attachment=True,
-        download_name="menu.pdf"
+        download_name=f"menu-{venue_key}.pdf"
     )
 
 
@@ -611,10 +671,7 @@ def status():
         "last_update": str(STATUS["last_update"]),
         "next_update": str(STATUS["next_update"]),
         "countdown_seconds": STATUS["countdown"],
-        "excel_downloaded": STATUS["excel_downloaded"],
-        "pdf_generated": STATUS["pdf_generated"],
-        "pdf_ready": STATUS["pdf_ready"],
-        "error": STATUS["error"]
+        "venues": STATUS["venues"],
     })
 
 
