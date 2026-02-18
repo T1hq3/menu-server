@@ -141,15 +141,20 @@ def build_html(df):
         if price == "0":
             price = ""
 
-        meta = []
-        if weight and weight.lower() != "nan":
-            meta.append(f"{weight} г")
-
-        meta_html = ""
-        if meta:
-            meta_html = f'<div class="item-meta">{" • ".join(meta)}</div>'
-
         desc_html = f'<div class="item-desc">{desc}</div>' if desc else ""
+        weight_html = ""
+
+        if weight and weight.lower() != "nan":
+            weight_html = f'<div class="item-weight">{html.escape(weight)} г</div>'
+
+        details_html = ""
+        if desc_html or weight_html:
+            details_html = f'''
+            <div class="item-details">
+                {desc_html}
+                {weight_html}
+            </div>
+            '''
 
         price_html = ""
         if price:
@@ -161,8 +166,7 @@ def build_html(df):
                 <span class="dish-name">{name}</span>
                 {price_html}
             </div>
-            {meta_html}
-            {desc_html}
+            {details_html}
         </div>
         """
 
@@ -314,18 +318,30 @@ def build_html(df):
         break-inside: avoid;
     }
 
-    .item-meta {
-        font-size: 8px;
-        color: #666;
-        margin-top: 1px;
-        line-height: 1.15;
-    }
-
     .item-desc {
         font-size: 7.6px;
         color: #555;
         line-height: 1.15;
         margin-top: 1px;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .item-details {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .item-weight {
+        font-size: 8px;
+        color: #666;
+        margin-top: 1px;
+        line-height: 1.15;
+        text-align: right;
+        white-space: nowrap;
+        flex: 0 0 auto;
     }
 
     .item:last-child {
