@@ -151,66 +151,44 @@ def build_html(df):
 
         desc_html = f'<div class="item-desc">{desc}</div>' if desc else ""
 
+        price_html = ""
+        if price:
+            price_html = f'<span class="dots" aria-hidden="true"></span><span class="price">{price}</span>'
+
         return f"""
         <div class="item">
             <div class="item-top">
                 <span class="dish-name">{name}</span>
-                <span class="price">{price}</span>
+                {price_html}
             </div>
             {meta_html}
             {desc_html}
         </div>
         """
 
-    def estimate_item_units(row):
-        desc = str(row.get("Description", "")).strip()
-        weight = str(row.get("Weight, g", "")).strip()
-
-        units = 1.0
-        if weight and weight.lower() != "nan":
-            units += 0.35
-        if desc:
-            units += max(0.5, len(desc) / 90)
-
-        return units
-
-    def split_category_items(items, max_units=17.5):
-        chunks = []
-        current_chunk = []
-        current_units = 0.0
-
-        for _, row in items.iterrows():
-            row_units = estimate_item_units(row)
-
-            if current_chunk and current_units + row_units > max_units:
-                chunks.append(current_chunk)
-                current_chunk = []
-                current_units = 0.0
-
-            current_chunk.append(row)
-            current_units += row_units
-
-        if current_chunk:
-            chunks.append(current_chunk)
-
-        return chunks
-
     def render_category(category, items):
         safe_category = html.escape(str(category).strip())
-        item_chunks = split_category_items(items)
+        block = f"""
+        <table class="category-card">
+            <thead>
+                <tr>
+                    <th class="cat-header">{safe_category}</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
 
-        block = ""
-        for chunk_index, chunk_rows in enumerate(item_chunks):
-            continuation_class = " continuation" if chunk_index > 0 else ""
+        for _, row in items.iterrows():
             block += f"""
-            <div class="category-card{continuation_class}">
-                <div class="cat-header">{safe_category}</div>
+            <tr>
+                <td>{render_item(row)}</td>
+            </tr>
             """
 
-            for row in chunk_rows:
-                block += render_item(row)
-
-            block += "</div>"
+        block += """
+            </tbody>
+        </table>
+        """
 
         return block
 
@@ -298,6 +276,9 @@ def build_html(df):
     }
 
     .category-card {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
         border: 1px solid #8f8f8f;
         border-radius: 5px;
         padding: 4px 5px;
@@ -309,19 +290,23 @@ def build_html(df):
         background: #fff;
     }
 
-    .category-card.continuation .cat-header {
-        background: #efefef;
+    .category-card thead {
+        display: table-header-group;
     }
 
     .cat-header {
+        text-align: left;
         font-size: 11px;
         font-weight: 900;
         text-transform: uppercase;
-        margin: 0 0 4px 0;
         letter-spacing: 0.4px;
         padding: 2px 4px;
         background: #f5f5f5;
         border-radius: 3px;
+    }
+
+    .category-card td {
+        padding: 0;
     }
 
     .item {
@@ -349,9 +334,15 @@ def build_html(df):
 
     .item-top {
         display: flex;
-        justify-content: space-between;
         align-items: baseline;
-        gap: 8px;
+        gap: 6px;
+    }
+
+    .dots {
+        flex: 1 1 auto;
+        border-bottom: 1px dotted #666;
+        transform: translateY(-2px);
+        min-width: 10px;
     }
 
     .dish-name {
