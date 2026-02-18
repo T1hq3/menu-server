@@ -151,11 +151,15 @@ def build_html(df):
 
         desc_html = f'<div class="item-desc">{desc}</div>' if desc else ""
 
+        price_html = ""
+        if price:
+            price_html = f'<span class="dots" aria-hidden="true"></span><span class="price">{price}</span>'
+
         return f"""
         <div class="item">
             <div class="item-top">
                 <span class="dish-name">{name}</span>
-                <span class="price">{price}</span>
+                {price_html}
             </div>
             {meta_html}
             {desc_html}
@@ -330,9 +334,15 @@ def build_html(df):
 
     .item-top {
         display: flex;
-        justify-content: space-between;
         align-items: baseline;
-        gap: 8px;
+        gap: 6px;
+    }
+
+    .dots {
+        flex: 1 1 auto;
+        border-bottom: 1px dotted #666;
+        transform: translateY(-2px);
+        min-width: 10px;
     }
 
     .dish-name {
