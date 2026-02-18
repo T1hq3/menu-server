@@ -7,6 +7,7 @@ import html
 import pandas as pd
 from weasyprint import HTML
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import logging
 
 # ======================
@@ -44,7 +45,7 @@ VENUES = {
         "section_order": [
             "BBQ Меню",
             "Основне Меню",
-            "Ланчі та Бранчі",
+            "Ланчі та бранчі з 12:00 до 17:00",
             "Коктейльна карта",
             "Гарячі напої",
             "Безалкогольний бар",
@@ -56,7 +57,12 @@ VENUES = {
     },
 }
 
-UPDATE_INTERVAL = 1800  # 30 minutes
+UPDATE_INTERVAL = 7200  # 2 hours
+KYIV_TIMEZONE = ZoneInfo("Europe/Kyiv")
+
+
+def now_kyiv():
+    return datetime.now(KYIV_TIMEZONE)
 
 update_lock = threading.Lock()
 
@@ -282,7 +288,7 @@ def build_html(df, venue_key):
 
         @bottom-center {{
             content: counter(page);
-            font-size: 8px;
+            font-size: 9px;
             color: #777;
         }}
     }}
@@ -291,7 +297,7 @@ def build_html(df, venue_key):
         font-family: "DejaVu Sans", sans-serif;
         color: #111;
         margin: 0;
-        font-size: 10px;
+        font-size: 11px;
     }}
 
     .cover-page {{
@@ -337,7 +343,7 @@ def build_html(df, venue_key):
     }}
 
     .section-title {{
-        font-size: 16px;
+        font-size: 18px;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: 1px;
@@ -375,7 +381,7 @@ def build_html(df, venue_key):
 
     .cat-header {{
         text-align: left;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: 0.4px;
@@ -394,7 +400,7 @@ def build_html(df, venue_key):
     }}
 
     .item-desc {{
-        font-size: 7.6px;
+        font-size: 8.8px;
         color: #555;
         line-height: 1.15;
         margin-top: 1px;
@@ -410,7 +416,7 @@ def build_html(df, venue_key):
     }}
 
     .item-weight {{
-        font-size: 8px;
+        font-size: 9px;
         color: #666;
         margin-top: 1px;
         line-height: 1.15;
@@ -437,13 +443,13 @@ def build_html(df, venue_key):
     }}
 
     .dish-name {{
-        font-size: 10.6px;
+        font-size: 12px;
         font-weight: 700;
         line-height: 1.15;
     }}
 
     .price {{
-        font-size: 10.2px;
+        font-size: 11.6px;
         font-weight: 700;
         white-space: nowrap;
     }}
@@ -561,7 +567,7 @@ def update_venue_menu(venue_key):
         "excel_downloaded": False,
         "pdf_generated": False,
         "pdf_ready": previous_pdf_ready,
-        "last_attempt": datetime.now(),
+        "last_attempt": now_kyiv(),
     })
 
     paths = venue_paths(venue_key)
@@ -571,7 +577,7 @@ def update_venue_menu(venue_key):
         download_excel(session, venue_key)
 
     generate_menu_pdf(venue_key)
-    venue_status["last_success"] = datetime.now()
+    venue_status["last_success"] = now_kyiv()
 
 
 def update_menu():
@@ -591,8 +597,8 @@ def update_menu():
                 STATUS["venues"][venue_key]["error"] = str(e)
                 logging.exception(f"[{venue_key}] Update failed")
 
-        STATUS["last_update"] = datetime.now()
-        STATUS["next_update"] = datetime.now() + timedelta(seconds=UPDATE_INTERVAL)
+        STATUS["last_update"] = now_kyiv()
+        STATUS["next_update"] = now_kyiv() + timedelta(seconds=UPDATE_INTERVAL)
 
         logging.info("=== UPDATE COMPLETE ===")
 
@@ -622,10 +628,10 @@ def index():
     def time_info(venue_key):
         venue_status = STATUS["venues"][venue_key]
         if venue_status["last_success"]:
-            return f"Останнє успішне оновлення: {venue_status['last_success'].strftime('%Y-%m-%d %H:%M:%S')}"
+            return f"Останнє успішне оновлення: {venue_status['last_success'].strftime('%Y-%m-%d %H:%M:%S %Z')}"
 
         if venue_status["last_attempt"]:
-            return f"Остання спроба: {venue_status['last_attempt'].strftime('%Y-%m-%d %H:%M:%S')}"
+            return f"Остання спроба: {venue_status['last_attempt'].strftime('%Y-%m-%d %H:%M:%S %Z')}"
 
         return "Ще не було спроб оновлення"
 
@@ -819,13 +825,14 @@ def status():
     for venue_key, venue_status in STATUS["venues"].items():
         venues_payload[venue_key] = {
             **venue_status,
-            "last_success": str(venue_status["last_success"]),
-            "last_attempt": str(venue_status["last_attempt"]),
+            "last_success": venue_status["last_success"].isoformat() if venue_status["last_success"] else None,
+            "last_attempt": venue_status["last_attempt"].isoformat() if venue_status["last_attempt"] else None,
         }
 
     return jsonify({
-        "last_update": str(STATUS["last_update"]),
-        "next_update": str(STATUS["next_update"]),
+        "timezone": "Europe/Kyiv",
+        "last_update": STATUS["last_update"].isoformat() if STATUS["last_update"] else None,
+        "next_update": STATUS["next_update"].isoformat() if STATUS["next_update"] else None,
         "countdown_seconds": STATUS["countdown"],
         "venues": venues_payload,
     })
