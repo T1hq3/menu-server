@@ -26,6 +26,12 @@ VENUES = {
         "login_url": "https://sunrise.choiceqr.com/api/auth/local",
         "export_url": "https://sunrise.choiceqr.com/api/export/xlsx",
         "referer": "https://sunrise.choiceqr.com/admin/",
+        "section_order": [
+            "Сети", "Роли", "Кухня", "Ланчі 11:00-17:00",
+            "Коктейльна карта", "Гарячі напої",
+            "Безалкогольний бар", "Алкогольний бар", "Винна карта",
+        ],
+        "excluded_sections": [],
     },
     "babuin": {
         "name": "BABUIN",
@@ -35,6 +41,18 @@ VENUES = {
         "login_url": "https://babuin.choiceqr.com/api/auth/local",
         "export_url": "https://babuin.choiceqr.com/api/export/xlsx",
         "referer": "https://babuin.choiceqr.com/admin/",
+        "section_order": [
+            "BBQ Меню",
+            "Основне Меню",
+            "Ланчі та бранчі",
+            "Коктейльна карта",
+            "Гарячі напої",
+            "Безалкогольний бар",
+            "Пиво",
+            "Винна карта",
+            "Алкогольний бар",
+        ],
+        "excluded_sections": ["Банкетне меню", "Кайтеринг"],
     },
 }
 
@@ -161,11 +179,24 @@ def download_excel(session, venue_key):
 
 def build_html(df, venue_key):
     venue = VENUES[venue_key]
+    section_order = venue.get("section_order", [])
+    excluded_sections = set(venue.get("excluded_sections", []))
+
+    def normalize_section(section_name):
+        return " ".join(str(section_name).split()).strip().lower()
+
+    normalized_section_map = {
+        normalize_section(section): section
+        for section in df["Section"].dropna().unique().tolist()
+    }
+
+    if excluded_sections:
+        excluded_normalized = {normalize_section(section) for section in excluded_sections}
+        df = df[~df["Section"].map(normalize_section).isin(excluded_normalized)]
 
     section_order = [
-        "Сети", "Роли", "Кухня", "Ланчі 11:00-17:00",
-        "Коктейльна карта", "Гарячі напої",
-        "Безалкогольний бар", "Алкогольний бар", "Винна карта",
+        normalized_section_map.get(normalize_section(section), section)
+        for section in section_order
     ]
 
     def render_item(row):
