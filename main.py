@@ -162,18 +162,55 @@ def build_html(df):
         </div>
         """
 
-    def render_category(category, items):
-        safe_category = html.escape(str(category).strip())
+    def estimate_item_units(row):
+        desc = str(row.get("Description", "")).strip()
+        weight = str(row.get("Weight, g", "")).strip()
 
-        block = f"""
-        <div class="category-card">
-            <div class="cat-header">{safe_category}</div>
-        """
+        units = 1.0
+        if weight and weight.lower() != "nan":
+            units += 0.35
+        if desc:
+            units += max(0.5, len(desc) / 90)
+
+        return units
+
+    def split_category_items(items, max_units=17.5):
+        chunks = []
+        current_chunk = []
+        current_units = 0.0
 
         for _, row in items.iterrows():
-            block += render_item(row)
+            row_units = estimate_item_units(row)
 
-        block += "</div>"
+            if current_chunk and current_units + row_units > max_units:
+                chunks.append(current_chunk)
+                current_chunk = []
+                current_units = 0.0
+
+            current_chunk.append(row)
+            current_units += row_units
+
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        return chunks
+
+    def render_category(category, items):
+        safe_category = html.escape(str(category).strip())
+        item_chunks = split_category_items(items)
+
+        block = ""
+        for chunk_index, chunk_rows in enumerate(item_chunks):
+            continuation_class = " continuation" if chunk_index > 0 else ""
+            block += f"""
+            <div class="category-card{continuation_class}">
+                <div class="cat-header">{safe_category}</div>
+            """
+
+            for row in chunk_rows:
+                block += render_item(row)
+
+            block += "</div>"
 
         return block
 
@@ -265,11 +302,15 @@ def build_html(df):
         border-radius: 5px;
         padding: 4px 5px;
         margin: 0 0 4px 0;
-        break-inside: avoid;
-        page-break-inside: avoid;
+        break-inside: auto;
+        page-break-inside: auto;
         box-decoration-break: clone;
         -webkit-box-decoration-break: clone;
         background: #fff;
+    }
+
+    .category-card.continuation .cat-header {
+        background: #efefef;
     }
 
     .cat-header {
