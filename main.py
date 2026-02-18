@@ -132,6 +132,7 @@ def build_html(df):
         "Коктейльна карта", "Гарячі напої",
         "Безалкогольний бар", "Алкогольний бар", "Винна карта",
     ]
+    max_items_per_category_chunk = 8
 
     def render_item(row):
         name = html.escape(str(row.get("Dish name", "")).strip())
@@ -165,15 +166,26 @@ def build_html(df):
 
     def render_category(category, items):
         safe_category = html.escape(str(category).strip())
-        block = f"""
+        rows = list(items.iterrows())
+
+        chunks = [
+            rows[i:i + max_items_per_category_chunk]
+            for i in range(0, len(rows), max_items_per_category_chunk)
+        ]
+
+        block = ""
+        for chunk_index, chunk_rows in enumerate(chunks):
+            header_suffix = "" if chunk_index == 0 else " (продовження)"
+            block += f"""
         <div class="category-card">
-            <div class="cat-header">{safe_category}</div>
-        """
+            <div class="cat-header">{safe_category}{header_suffix}</div>
+            """
 
-        for _, row in items.iterrows():
-            block += render_item(row)
+            for _, row in chunk_rows:
+                block += render_item(row)
 
-        block += "</div>"
+            block += "</div>"
+
         return block
 
     html_content = """
