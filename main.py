@@ -132,6 +132,7 @@ def build_html(df):
         "Коктейльна карта", "Гарячі напої",
         "Безалкогольний бар", "Алкогольний бар", "Винна карта",
     ]
+    split_only_very_long_categories_over = 16
 
     def render_item(row):
         name = html.escape(str(row.get("Dish name", "")).strip())
@@ -165,15 +166,27 @@ def build_html(df):
 
     def render_category(category, items):
         safe_category = html.escape(str(category).strip())
-        block = f"""
+        rows = list(items.iterrows())
+
+        # Split only once (left column -> right column) for very long categories.
+        if len(rows) > split_only_very_long_categories_over:
+            split_index = len(rows) // 2
+            chunks = [rows[:split_index], rows[split_index:]]
+        else:
+            chunks = [rows]
+
+        block = ""
+        for chunk_rows in chunks:
+            block += f"""
         <div class="category-card">
             <div class="cat-header">{safe_category}</div>
-        """
+            """
 
-        for _, row in items.iterrows():
-            block += render_item(row)
+            for _, row in chunk_rows:
+                block += render_item(row)
 
-        block += "</div>"
+            block += "</div>"
+
         return block
 
     html_content = """
@@ -264,7 +277,7 @@ def build_html(df):
         border-radius: 5px;
         padding: 4px 5px;
         margin: 0 0 4px 0;
-        break-inside: auto;
+        break-inside: avoid;
         box-decoration-break: clone;
         -webkit-box-decoration-break: clone;
         background: #fff;
@@ -277,7 +290,6 @@ def build_html(df):
         margin: 0 0 4px 0;
         letter-spacing: 0.4px;
         padding: 2px 4px;
-        border-left: 3px solid #111;
         background: #f5f5f5;
         border-radius: 3px;
     }
