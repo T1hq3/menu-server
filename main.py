@@ -52,7 +52,7 @@ VENUES = {
             "Винна карта",
             "Алкогольний бар",
         ],
-        "excluded_sections": ["Банкетне меню", "Кейтеринг", "Кайтеринг"],
+        "excluded_sections": ["Банкетне меню", "Кейтеринг", "Кайтеринг", "Кейтеринг BABUIN"],
     },
 }
 
@@ -634,6 +634,14 @@ def index():
     sunrise_time = time_info("sunrise")
     babuin_time = time_info("babuin")
 
+    countdown_seconds = STATUS.get("countdown", 0)
+    if countdown_seconds and countdown_seconds > 0:
+        hours, remainder = divmod(countdown_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        countdown_text = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    else:
+        countdown_text = "оновлення виконується"
+
     return render_template_string("""
     <html>
     <head>
@@ -706,6 +714,13 @@ def index():
                 color: #3b3b3b;
                 font-weight: 600;
             }
+
+            .countdown {
+                margin-top: 8px;
+                font-size: 13px;
+                color: #444;
+                font-weight: 600;
+            }
         </style>
     </head>
     <body>
@@ -729,11 +744,48 @@ def index():
             <div class="status-line">{{ babuin_status }}</div>
             <div class="status-time">{{ babuin_time }}</div>
 
+            <div id="excel-countdown" class="countdown">До наступного завантаження Excel: {{ countdown_text }}</div>
             <a href="/status" class="link">Статус системи</a>
         </div>
+
+        <script>
+            function formatCountdown(seconds) {
+                if (!seconds || seconds <= 0) {
+                    return "оновлення виконується";
+                }
+
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = seconds % 60;
+                return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+            }
+
+            async function refreshCountdown() {
+                try {
+                    const response = await fetch("/status");
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const payload = await response.json();
+                    const node = document.getElementById("excel-countdown");
+                    if (!node) {
+                        return;
+                    }
+
+                    const text = formatCountdown(payload.countdown_seconds);
+                    node.textContent = `До наступного завантаження Excel: ${text}`;
+                } catch (e) {
+                    // ignore temporary network errors
+                }
+            }
+
+            setInterval(refreshCountdown, 1000);
+            refreshCountdown();
+        </script>
     </body>
     </html>
-    """, sunrise_status=sunrise_status, babuin_status=babuin_status, sunrise_time=sunrise_time, babuin_time=babuin_time)
+    """, sunrise_status=sunrise_status, babuin_status=babuin_status, sunrise_time=sunrise_time, babuin_time=babuin_time, countdown_text=countdown_text)
 
 
 @app.route("/download/<venue_key>")
