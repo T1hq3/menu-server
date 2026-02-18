@@ -264,7 +264,7 @@ def build_html(df):
         border-radius: 5px;
         padding: 4px 5px;
         margin: 0 0 4px 0;
-        break-inside: auto;
+        break-inside: avoid;
         box-decoration-break: clone;
         -webkit-box-decoration-break: clone;
         background: #fff;
