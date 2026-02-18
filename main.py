@@ -52,11 +52,11 @@ VENUES = {
             "Винна карта",
             "Алкогольний бар",
         ],
-        "excluded_sections": ["Банкетне меню", "Кайтеринг"],
+        "excluded_sections": ["Банкетне меню", "Кейтеринг", "Кайтеринг"],
     },
 }
 
-UPDATE_INTERVAL = 7200  # 2 hours
+UPDATE_INTERVAL = 1800  # 30 minutes
 
 update_lock = threading.Lock()
 
@@ -69,6 +69,8 @@ STATUS = {
             "excel_downloaded": False,
             "pdf_generated": False,
             "pdf_ready": False,
+            "last_success": None,
+            "last_attempt": None,
             "error": None,
         }
         for key in VENUES
@@ -93,6 +95,12 @@ def venue_paths(venue_key):
         "excel": os.path.join(venue_dir, "menu.xlsx"),
         "pdf": os.path.join(venue_dir, "menu.pdf"),
     }
+
+
+def refresh_pdf_ready_flags():
+    for venue_key in VENUES:
+        paths = venue_paths(venue_key)
+        STATUS["venues"][venue_key]["pdf_ready"] = os.path.exists(paths["pdf"]) and os.path.getsize(paths["pdf"]) > 0
 
 
 # ======================
@@ -546,11 +554,14 @@ def generate_menu_pdf(venue_key):
 
 def update_venue_menu(venue_key):
     venue_status = STATUS["venues"][venue_key]
+    previous_pdf_ready = venue_status.get("pdf_ready", False)
+
     venue_status.update({
         "error": None,
         "excel_downloaded": False,
         "pdf_generated": False,
-        "pdf_ready": False,
+        "pdf_ready": previous_pdf_ready,
+        "last_attempt": datetime.now(),
     })
 
     paths = venue_paths(venue_key)
@@ -560,6 +571,7 @@ def update_venue_menu(venue_key):
         download_excel(session, venue_key)
 
     generate_menu_pdf(venue_key)
+    venue_status["last_success"] = datetime.now()
 
 
 def update_menu():
@@ -594,6 +606,34 @@ def update_menu():
 
 @app.route("/")
 def index():
+    refresh_pdf_ready_flags()
+
+    def status_badge(venue_key):
+        venue_status = STATUS["venues"][venue_key]
+
+        if venue_status["error"]:
+            return "🔴 Помилка вигрузки"
+
+        if venue_status["pdf_ready"]:
+            return "🟢 PDF готовий"
+
+        return "🟡 Очікуємо перший PDF"
+
+    def time_info(venue_key):
+        venue_status = STATUS["venues"][venue_key]
+        if venue_status["last_success"]:
+            return f"Останнє успішне оновлення: {venue_status['last_success'].strftime('%Y-%m-%d %H:%M:%S')}"
+
+        if venue_status["last_attempt"]:
+            return f"Остання спроба: {venue_status['last_attempt'].strftime('%Y-%m-%d %H:%M:%S')}"
+
+        return "Ще не було спроб оновлення"
+
+    sunrise_status = status_badge("sunrise")
+    babuin_status = status_badge("babuin")
+    sunrise_time = time_info("sunrise")
+    babuin_time = time_info("babuin")
+
     return render_template_string("""
     <html>
     <head>
@@ -646,6 +686,20 @@ def index():
                 background: #2d2d2d;
             }
 
+            .status-line {
+                font-size: 13px;
+                margin: -2px 0 10px 0;
+                color: #333;
+                font-weight: 600;
+            }
+
+            .status-time {
+                font-size: 12px;
+                margin-top: -8px;
+                margin-bottom: 10px;
+                color: #777;
+            }
+
             .link {
                 display: inline-block;
                 margin-top: 16px;
@@ -664,22 +718,28 @@ def index():
                     Завантажити PDF — Sunrise
                 </button>
             </form>
+            <div class="status-line">{{ sunrise_status }}</div>
+            <div class="status-time">{{ sunrise_time }}</div>
 
             <form action="/download/babuin" method="get" style="margin-bottom:6px;">
                 <button type="submit" class="download-btn">
                     Завантажити PDF — BABUIN
                 </button>
             </form>
+            <div class="status-line">{{ babuin_status }}</div>
+            <div class="status-time">{{ babuin_time }}</div>
 
             <a href="/status" class="link">Статус системи</a>
         </div>
     </body>
     </html>
-    """)
+    """, sunrise_status=sunrise_status, babuin_status=babuin_status, sunrise_time=sunrise_time, babuin_time=babuin_time)
 
 
 @app.route("/download/<venue_key>")
 def download_pdf(venue_key):
+    refresh_pdf_ready_flags()
+
     if venue_key not in VENUES:
         return "Unknown venue", 404
 
@@ -687,6 +747,9 @@ def download_pdf(venue_key):
         return "PDF not ready yet", 503
 
     paths = venue_paths(venue_key)
+    if not os.path.exists(paths["pdf"]):
+        STATUS["venues"][venue_key]["pdf_ready"] = False
+        return "PDF not ready yet", 503
 
     return send_file(
         paths["pdf"],
@@ -698,11 +761,21 @@ def download_pdf(venue_key):
 
 @app.route("/status")
 def status():
+    refresh_pdf_ready_flags()
+
+    venues_payload = {}
+    for venue_key, venue_status in STATUS["venues"].items():
+        venues_payload[venue_key] = {
+            **venue_status,
+            "last_success": str(venue_status["last_success"]),
+            "last_attempt": str(venue_status["last_attempt"]),
+        }
+
     return jsonify({
         "last_update": str(STATUS["last_update"]),
         "next_update": str(STATUS["next_update"]),
         "countdown_seconds": STATUS["countdown"],
-        "venues": STATUS["venues"],
+        "venues": venues_payload,
     })
 
 
@@ -711,6 +784,7 @@ def status():
 # ======================
 
 def background_worker():
+    refresh_pdf_ready_flags()
     update_menu()  # first run immediately
 
     while True:
