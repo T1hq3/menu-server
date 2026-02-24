@@ -55,6 +55,17 @@ VENUES = {
         ],
         "excluded_sections": ["Банкетне меню", "Кейтеринг", "Кайтеринг", "Кейтеринг BABUIN"],
     },
+    "hochu-z-yisti": {
+        "name": "hochu-z-yisti",
+        "subbrand": "Офіційне меню закладу hochu-z-yisti",
+        "identifier": os.getenv("HOCHU_Z_YISTI_IDENTIFIER") or os.getenv("IDENTIFIER"),
+        "password": os.getenv("HOCHU_Z_YISTI_PASSWORD") or os.getenv("PASSWORD"),
+        "login_url": "https://hochu-z-yisti.com/api/auth/local",
+        "export_url": "https://hochu-z-yisti.com/api/export/xlsx",
+        "referer": "https://hochu-z-yisti.choiceqr.com/admin/",
+        "section_order": [],
+        "excluded_sections": [],
+    },
 }
 
 UPDATE_INTERVAL = 7200  # 2 hours
@@ -635,10 +646,15 @@ def index():
 
         return "Ще не було спроб оновлення"
 
-    sunrise_status = status_badge("sunrise")
-    babuin_status = status_badge("babuin")
-    sunrise_time = time_info("sunrise")
-    babuin_time = time_info("babuin")
+    venue_cards = [
+        {
+            "key": venue_key,
+            "name": VENUES[venue_key]["name"],
+            "status": status_badge(venue_key),
+            "time": time_info(venue_key),
+        }
+        for venue_key in VENUES
+    ]
 
     countdown_seconds = STATUS.get("countdown", 0)
     if countdown_seconds and countdown_seconds > 0:
@@ -734,21 +750,15 @@ def index():
             <h1>ChoiceQR Menu Export</h1>
             <div class="subtitle">Офіційні PDF меню закладів</div>
 
-            <form action="/download/sunrise" method="get" style="margin-bottom:6px;">
+            {% for venue in venue_cards %}
+            <form action="/download/{{ venue.key }}" method="get" style="margin-bottom:6px;">
                 <button type="submit" class="download-btn">
-                    Завантажити PDF — Sunrise
+                    Завантажити PDF — {{ venue.name }}
                 </button>
             </form>
-            <div class="status-line">{{ sunrise_status }}</div>
-            <div class="status-time">{{ sunrise_time }}</div>
-
-            <form action="/download/babuin" method="get" style="margin-bottom:6px;">
-                <button type="submit" class="download-btn">
-                    Завантажити PDF — BABUIN
-                </button>
-            </form>
-            <div class="status-line">{{ babuin_status }}</div>
-            <div class="status-time">{{ babuin_time }}</div>
+            <div class="status-line">{{ venue.status }}</div>
+            <div class="status-time">{{ venue.time }}</div>
+            {% endfor %}
 
             <div id="excel-countdown" class="countdown">До наступного завантаження Excel: {{ countdown_text }}</div>
             <a href="/status" class="link">Статус системи</a>
@@ -791,7 +801,7 @@ def index():
         </script>
     </body>
     </html>
-    """, sunrise_status=sunrise_status, babuin_status=babuin_status, sunrise_time=sunrise_time, babuin_time=babuin_time, countdown_text=countdown_text)
+    """, venue_cards=venue_cards, countdown_text=countdown_text)
 
 
 @app.route("/download/<venue_key>")
