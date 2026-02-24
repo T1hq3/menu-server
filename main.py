@@ -22,6 +22,8 @@ VENUES = {
     "sunrise": {
         "name": "Sunrise",
         "subbrand": "Офіційне меню ресторану Sunrise",
+        "identifier_env": "SUNRISE_IDENTIFIER",
+        "password_env": "SUNRISE_PASSWORD",
         "identifier": os.getenv("SUNRISE_IDENTIFIER") or os.getenv("IDENTIFIER"),
         "password": os.getenv("SUNRISE_PASSWORD") or os.getenv("PASSWORD"),
         "login_url": "https://sunrise.choiceqr.com/api/auth/local",
@@ -37,6 +39,8 @@ VENUES = {
     "babuin": {
         "name": "BABUIN",
         "subbrand": "Офіційне меню ресторану BABUIN",
+        "identifier_env": "BABUIN_IDENTIFIER",
+        "password_env": "BABUIN_PASSWORD",
         "identifier": os.getenv("BABUIN_IDENTIFIER"),
         "password": os.getenv("BABUIN_PASSWORD"),
         "login_url": "https://babuin.choiceqr.com/api/auth/local",
@@ -54,6 +58,19 @@ VENUES = {
             "Алкогольний бар",
         ],
         "excluded_sections": ["Банкетне меню", "Кейтеринг", "Кайтеринг", "Кейтеринг BABUIN"],
+    },
+    "hochu-z-yisti": {
+        "name": "hochu-z-yisti",
+        "subbrand": "Офіційне меню закладу hochu-z-yisti",
+        "identifier_env": "HOCHU_Z_YISTI_IDENTIFIER",
+        "password_env": "HOCHU_Z_YISTI_PASSWORD",
+        "identifier": os.getenv("HOCHU_Z_YISTI_IDENTIFIER") or os.getenv("IDENTIFIER"),
+        "password": os.getenv("HOCHU_Z_YISTI_PASSWORD") or os.getenv("PASSWORD"),
+        "login_url": "https://hochu-z-yisti.com/api/auth/local",
+        "export_url": "https://hochu-z-yisti.com/api/export/xlsx",
+        "referer": "https://hochu-z-yisti.choiceqr.com/admin/",
+        "section_order": [],
+        "excluded_sections": [],
     },
 }
 
@@ -117,7 +134,9 @@ def login_and_get_session(venue_key):
     venue = VENUES[venue_key]
 
     if not venue["identifier"] or not venue["password"]:
-        raise Exception("ENV variables missing")
+        identifier_env = venue.get("identifier_env", "IDENTIFIER")
+        password_env = venue.get("password_env", "PASSWORD")
+        raise Exception(f"Missing credentials in env: {identifier_env}, {password_env}")
 
     session = requests.Session()
 
@@ -635,10 +654,16 @@ def index():
 
         return "Ще не було спроб оновлення"
 
-    sunrise_status = status_badge("sunrise")
-    babuin_status = status_badge("babuin")
-    sunrise_time = time_info("sunrise")
-    babuin_time = time_info("babuin")
+    venue_cards = [
+        {
+            "key": venue_key,
+            "name": VENUES[venue_key]["name"],
+            "status": status_badge(venue_key),
+            "time": time_info(venue_key),
+            "error": STATUS["venues"][venue_key]["error"],
+        }
+        for venue_key in VENUES
+    ]
 
     countdown_seconds = STATUS.get("countdown", 0)
     if countdown_seconds and countdown_seconds > 0:
@@ -734,21 +759,16 @@ def index():
             <h1>ChoiceQR Menu Export</h1>
             <div class="subtitle">Офіційні PDF меню закладів</div>
 
-            <form action="/download/sunrise" method="get" style="margin-bottom:6px;">
+            {% for venue in venue_cards %}
+            <form action="/download/{{ venue.key }}" method="get" style="margin-bottom:6px;">
                 <button type="submit" class="download-btn">
-                    Завантажити PDF — Sunrise
+                    Завантажити PDF — {{ venue.name }}
                 </button>
             </form>
-            <div class="status-line">{{ sunrise_status }}</div>
-            <div class="status-time">{{ sunrise_time }}</div>
-
-            <form action="/download/babuin" method="get" style="margin-bottom:6px;">
-                <button type="submit" class="download-btn">
-                    Завантажити PDF — BABUIN
-                </button>
-            </form>
-            <div class="status-line">{{ babuin_status }}</div>
-            <div class="status-time">{{ babuin_time }}</div>
+            <div class="status-line">{{ venue.status }}</div>
+            <div class="status-time">{{ venue.time }}</div>
+            {% if venue.error %}<div class="status-time">Деталі: {{ venue.error }}</div>{% endif %}
+            {% endfor %}
 
             <div id="excel-countdown" class="countdown">До наступного завантаження Excel: {{ countdown_text }}</div>
             <a href="/status" class="link">Статус системи</a>
@@ -791,7 +811,7 @@ def index():
         </script>
     </body>
     </html>
-    """, sunrise_status=sunrise_status, babuin_status=babuin_status, sunrise_time=sunrise_time, babuin_time=babuin_time, countdown_text=countdown_text)
+    """, venue_cards=venue_cards, countdown_text=countdown_text)
 
 
 @app.route("/download/<venue_key>")
