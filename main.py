@@ -72,6 +72,19 @@ VENUES = {
         "section_order": [],
         "excluded_sections": [],
     },
+    "hochu-rebra": {
+        "name": "hochu-rebra",
+        "subbrand": "Офіційне меню закладу hochu-rebra",
+        "identifier_env": "HOCHU_REBRA_IDENTIFIER",
+        "password_env": "HOCHU_REBRA_PASSWORD",
+        "identifier": os.getenv("HOCHU_REBRA_IDENTIFIER") or os.getenv("IDENTIFIER"),
+        "password": os.getenv("HOCHU_REBRA_PASSWORD") or os.getenv("PASSWORD"),
+        "login_url": "https://hochu-rebra.choiceqr.com/api/auth/local",
+        "export_url": "https://hochu-rebra.choiceqr.com/api/export/xlsx",
+        "referer": "https://hochu-rebra.choiceqr.com/admin/",
+        "section_order": [],
+        "excluded_sections": [],
+    },
 }
 
 UPDATE_INTERVAL = 7200  # 2 hours
