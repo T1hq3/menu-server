@@ -72,6 +72,32 @@ VENUES = {
         "section_order": [],
         "excluded_sections": [],
     },
+    "hochu-rebra": {
+        "name": "hochu-rebra",
+        "subbrand": "Офіційне меню закладу hochu-rebra",
+        "identifier_env": "HOCHU_REBRA_IDENTIFIER",
+        "password_env": "HOCHU_REBRA_PASSWORD",
+        "identifier": os.getenv("HOCHU_REBRA_IDENTIFIER") or os.getenv("IDENTIFIER"),
+        "password": os.getenv("HOCHU_REBRA_PASSWORD") or os.getenv("PASSWORD"),
+        "login_url": "https://hochu-rebra.choiceqr.com/api/auth/local",
+        "export_url": "https://hochu-rebra.choiceqr.com/api/export/xlsx",
+        "referer": "https://hochu-rebra.choiceqr.com/admin/",
+        "section_order": [],
+        "excluded_sections": [],
+    },
+    "yo-yo": {
+        "name": "yo-yo",
+        "subbrand": "Офіційне меню закладу yo-yo",
+        "identifier_env": "YO_YO_IDENTIFIER",
+        "password_env": "YO_YO_PASSWORD",
+        "identifier": os.getenv("YO_YO_IDENTIFIER") or os.getenv("IDENTIFIER"),
+        "password": os.getenv("YO_YO_PASSWORD") or os.getenv("PASSWORD"),
+        "login_url": "https://yo-yo.choiceqr.com/api/auth/local",
+        "export_url": "https://yo-yo.choiceqr.com/api/export/xlsx",
+        "referer": "https://yo-yo.choiceqr.com/admin/",
+        "section_order": [],
+        "excluded_sections": [],
+    },
 }
 
 UPDATE_INTERVAL = 7200  # 2 hours
@@ -695,7 +721,7 @@ def index():
             }
 
             .card {
-                width: min(520px, 90vw);
+                width: min(1200px, 95vw);
                 background: #fff;
                 border: 1px solid #d4d4d4;
                 border-radius: 16px;
@@ -713,13 +739,39 @@ def index():
                 letter-spacing: 0.7px;
             }
 
+            .venues-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                gap: 14px;
+                align-items: start;
+                margin-top: 14px;
+            }
+
+            .venue-column {
+                border: 1px solid #e2e2e2;
+                border-radius: 12px;
+                padding: 14px 12px;
+                background: #fafafa;
+                text-align: left;
+                min-height: 190px;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .venue-name {
+                font-size: 16px;
+                font-weight: 700;
+                margin-bottom: 10px;
+                text-transform: uppercase;
+            }
+
             .download-btn {
                 border: none;
                 background: #111;
                 color: #fff;
-                font-size: 16px;
+                font-size: 14px;
                 border-radius: 10px;
-                padding: 12px 24px;
+                padding: 10px 14px;
                 cursor: pointer;
                 font-weight: 700;
                 width: 100%;
@@ -732,25 +784,27 @@ def index():
 
             .status-line {
                 font-size: 13px;
-                margin: -2px 0 10px 0;
+                margin: 0 0 8px 0;
                 color: #333;
                 font-weight: 600;
             }
 
             .status-time {
                 font-size: 12px;
-                margin-top: -8px;
-                margin-bottom: 10px;
+                margin: 0 0 8px 0;
                 color: #777;
             }
 
             .status-error {
                 font-size: 12px;
-                margin-top: -6px;
-                margin-bottom: 10px;
+                margin: 0;
                 color: #b42318;
                 font-weight: 700;
                 word-break: break-word;
+            }
+
+            .footer {
+                margin-top: 20px;
             }
 
             .link {
@@ -773,21 +827,28 @@ def index():
             <h1>ChoiceQR Menu Export</h1>
             <div class="subtitle">Офіційні PDF меню закладів</div>
 
-            {% for venue in venue_cards %}
-            <form action="/download/{{ venue.key }}" method="get" style="margin-bottom:6px;">
-                <button type="submit" class="download-btn">
-                    Завантажити PDF — {{ venue.name }}
-                </button>
-            </form>
-            <div class="status-line">{{ venue.status }}</div>
-            <div class="status-time">{{ venue.time }}</div>
-            {% if venue.error %}
-            <div class="status-error">Деталі помилки: {{ venue.error }}</div>
-            {% endif %}
-            {% endfor %}
+            <div class="venues-grid">
+                {% for venue in venue_cards %}
+                <div class="venue-column">
+                    <div class="venue-name">{{ venue.name }}</div>
+                    <form action="/download/{{ venue.key }}" method="get" style="margin:0 0 6px 0;">
+                        <button type="submit" class="download-btn">
+                            Завантажити PDF
+                        </button>
+                    </form>
+                    <div class="status-line">{{ venue.status }}</div>
+                    <div class="status-time">{{ venue.time }}</div>
+                    {% if venue.error %}
+                    <div class="status-error">Деталі помилки: {{ venue.error }}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
 
-            <div id="excel-countdown" class="countdown">До наступного завантаження Excel: {{ countdown_text }}</div>
-            <a href="/status" class="link">Статус системи</a>
+            <div class="footer">
+                <div id="excel-countdown" class="countdown">До наступного завантаження Excel: {{ countdown_text }}</div>
+                <a href="/status" class="link">Статус системи</a>
+            </div>
         </div>
 
         <script>
