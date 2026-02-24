@@ -85,6 +85,19 @@ VENUES = {
         "section_order": [],
         "excluded_sections": [],
     },
+    "yo-yo": {
+        "name": "yo-yo",
+        "subbrand": "Офіційне меню закладу yo-yo",
+        "identifier_env": "YO_YO_IDENTIFIER",
+        "password_env": "YO_YO_PASSWORD",
+        "identifier": os.getenv("YO_YO_IDENTIFIER") or os.getenv("IDENTIFIER"),
+        "password": os.getenv("YO_YO_PASSWORD") or os.getenv("PASSWORD"),
+        "login_url": "https://yo-yo.choiceqr.com/api/auth/local",
+        "export_url": "https://yo-yo.choiceqr.com/api/export/xlsx",
+        "referer": "https://yo-yo.choiceqr.com/admin/",
+        "section_order": [],
+        "excluded_sections": [],
+    },
 }
 
 UPDATE_INTERVAL = 7200  # 2 hours
@@ -651,34 +664,11 @@ def update_menu():
 def index():
     refresh_pdf_ready_flags()
 
-    def status_badge(venue_key):
-        venue_status = STATUS["venues"][venue_key]
-
-        if venue_status["error"]:
-            return "🔴 Помилка вигрузки"
-
-        if venue_status["pdf_ready"]:
-            return "🟢 PDF готовий"
-
-        return "🟡 Очікуємо перший PDF"
-
-    def time_info(venue_key):
-        venue_status = STATUS["venues"][venue_key]
-        if venue_status["last_success"]:
-            return f"Останнє успішне оновлення: {venue_status['last_success'].strftime('%Y-%m-%d %H:%M:%S %Z')}"
-
-        if venue_status["last_attempt"]:
-            return f"Остання спроба: {venue_status['last_attempt'].strftime('%Y-%m-%d %H:%M:%S %Z')}"
-
-        return "Ще не було спроб оновлення"
-
     venue_cards = [
         {
             "key": venue_key,
             "name": VENUES[venue_key]["name"],
-            "status": status_badge(venue_key),
-            "time": time_info(venue_key),
-            "error": STATUS["venues"][venue_key]["error"],
+            "ready": STATUS["venues"][venue_key]["pdf_ready"],
         }
         for venue_key in VENUES
     ]
@@ -698,109 +688,160 @@ def index():
         <style>
             body {
                 margin: 0;
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: linear-gradient(160deg, #f6f6f6 0%, #e8e8e8 100%);
+                padding: 36px 18px;
+                background: linear-gradient(160deg, #f7f7f7 0%, #eceef3 100%);
                 font-family: Arial, sans-serif;
-                color: #111;
+                color: #171717;
             }
 
-            .card {
-                width: min(520px, 90vw);
+            .layout {
+                max-width: 980px;
+                margin: 0 auto;
+            }
+
+            .hero {
                 background: #fff;
                 border: 1px solid #d4d4d4;
                 border-radius: 16px;
                 box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-                padding: 30px 24px;
+                padding: 28px 24px;
                 text-align: center;
+                margin-bottom: 20px;
+            }
+
+            h1 {
+                margin: 0;
             }
 
             .subtitle {
                 font-size: 13px;
                 color: #666;
                 margin-top: 4px;
-                margin-bottom: 20px;
+                margin-bottom: 10px;
                 text-transform: uppercase;
                 letter-spacing: 0.7px;
+            }
+
+            .intro {
+                margin: 0;
+                color: #444;
+                font-size: 14px;
+            }
+
+            .venues-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+                gap: 14px;
+                margin-bottom: 20px;
+            }
+
+            .venue-card {
+                background: #fff;
+                border: 1px solid #d5d7dd;
+                border-radius: 14px;
+                padding: 14px;
+                box-shadow: 0 5px 14px rgba(0, 0, 0, 0.05);
+            }
+
+            .venue-title {
+                margin: 0 0 10px 0;
+                font-size: 18px;
             }
 
             .download-btn {
                 border: none;
                 background: #111;
                 color: #fff;
-                font-size: 16px;
+                font-size: 14px;
                 border-radius: 10px;
-                padding: 12px 24px;
+                padding: 10px 12px;
                 cursor: pointer;
                 font-weight: 700;
                 width: 100%;
-                margin-bottom: 10px;
             }
 
             .download-btn:hover {
                 background: #2d2d2d;
             }
 
-            .status-line {
-                font-size: 13px;
-                margin: -2px 0 10px 0;
-                color: #333;
-                font-weight: 600;
-            }
-
-            .status-time {
+            .ready-badge {
+                margin-top: 10px;
                 font-size: 12px;
-                margin-top: -8px;
-                margin-bottom: 10px;
-                color: #777;
-            }
-
-            .status-error {
-                font-size: 12px;
-                margin-top: -6px;
-                margin-bottom: 10px;
-                color: #b42318;
                 font-weight: 700;
-                word-break: break-word;
+                color: #0a6e35;
             }
 
-            .link {
-                display: inline-block;
-                margin-top: 16px;
-                color: #3b3b3b;
-                font-weight: 600;
+            .pending-badge {
+                margin-top: 10px;
+                font-size: 12px;
+                color: #8a6c00;
+                font-weight: 700;
+            }
+
+            .guide {
+                background: #fff;
+                border: 1px solid #d4d4d4;
+                border-radius: 16px;
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.07);
+                padding: 20px 24px;
+            }
+
+            .guide h2 {
+                margin-top: 0;
+                margin-bottom: 8px;
+                font-size: 20px;
+            }
+
+            .guide ol {
+                margin: 10px 0 0 18px;
+                padding: 0;
+                color: #333;
+                font-size: 14px;
+                line-height: 1.45;
             }
 
             .countdown {
-                margin-top: 8px;
+                margin-top: 12px;
                 font-size: 13px;
-                color: #444;
+                color: #555;
                 font-weight: 600;
             }
         </style>
     </head>
     <body>
-        <div class="card">
-            <h1>ChoiceQR Menu Export</h1>
-            <div class="subtitle">Офіційні PDF меню закладів</div>
+        <div class="layout">
+            <section class="hero">
+                <h1>ChoiceQR Menu Export</h1>
+                <div class="subtitle">Офіційні PDF меню закладів</div>
+                <p class="intro">Кожен заклад винесений в окрему картку для швидкого завантаження потрібного меню.</p>
+                <div id="excel-countdown" class="countdown">До наступного завантаження Excel: {{ countdown_text }}</div>
+            </section>
 
-            {% for venue in venue_cards %}
-            <form action="/download/{{ venue.key }}" method="get" style="margin-bottom:6px;">
-                <button type="submit" class="download-btn">
-                    Завантажити PDF — {{ venue.name }}
-                </button>
-            </form>
-            <div class="status-line">{{ venue.status }}</div>
-            <div class="status-time">{{ venue.time }}</div>
-            {% if venue.error %}
-            <div class="status-error">Деталі помилки: {{ venue.error }}</div>
-            {% endif %}
-            {% endfor %}
+            <section class="venues-grid">
+                {% for venue in venue_cards %}
+                <article class="venue-card">
+                    <h3 class="venue-title">{{ venue.name }}</h3>
+                    <form action="/download/{{ venue.key }}" method="get">
+                        <button type="submit" class="download-btn">Завантажити PDF меню</button>
+                    </form>
+                    {% if venue.ready %}
+                    <div class="ready-badge">PDF готовий до завантаження</div>
+                    {% else %}
+                    <div class="pending-badge">Меню оновлюється, спробуйте трохи пізніше</div>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            </section>
 
-            <div id="excel-countdown" class="countdown">До наступного завантаження Excel: {{ countdown_text }}</div>
-            <a href="/status" class="link">Статус системи</a>
+            <section class="guide">
+                <h2>Інструкція користування сайтом</h2>
+                <ol>
+                    <li>Оберіть картку потрібного закладу.</li>
+                    <li>Натисніть кнопку <b>«Завантажити PDF меню»</b>.</li>
+                    <li>Відкрийте завантажений файл або одразу передайте його гостю.</li>
+                    <li>Якщо меню ще оновлюється, зачекайте до завершення таймера і повторіть спробу.</li>
+                </ol>
+            </section>
         </div>
 
         <script>
