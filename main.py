@@ -22,6 +22,8 @@ VENUES = {
     "sunrise": {
         "name": "Sunrise",
         "subbrand": "Офіційне меню ресторану Sunrise",
+        "identifier_env": "SUNRISE_IDENTIFIER",
+        "password_env": "SUNRISE_PASSWORD",
         "identifier": os.getenv("SUNRISE_IDENTIFIER") or os.getenv("IDENTIFIER"),
         "password": os.getenv("SUNRISE_PASSWORD") or os.getenv("PASSWORD"),
         "login_url": "https://sunrise.choiceqr.com/api/auth/local",
@@ -37,6 +39,8 @@ VENUES = {
     "babuin": {
         "name": "BABUIN",
         "subbrand": "Офіційне меню ресторану BABUIN",
+        "identifier_env": "BABUIN_IDENTIFIER",
+        "password_env": "BABUIN_PASSWORD",
         "identifier": os.getenv("BABUIN_IDENTIFIER"),
         "password": os.getenv("BABUIN_PASSWORD"),
         "login_url": "https://babuin.choiceqr.com/api/auth/local",
@@ -58,10 +62,12 @@ VENUES = {
     "hochu-z-yisti": {
         "name": "hochu-z-yisti",
         "subbrand": "Офіційне меню закладу hochu-z-yisti",
+        "identifier_env": "HOCHU_Z_YISTI_IDENTIFIER",
+        "password_env": "HOCHU_Z_YISTI_PASSWORD",
         "identifier": os.getenv("HOCHU_Z_YISTI_IDENTIFIER") or os.getenv("IDENTIFIER"),
         "password": os.getenv("HOCHU_Z_YISTI_PASSWORD") or os.getenv("PASSWORD"),
-        "login_url": "https://hochu-z-yisti.com/api/auth/local",
-        "export_url": "https://hochu-z-yisti.com/api/export/xlsx",
+        "login_url": "https://hochu-z-yisti.choiceqr.com/api/auth/local",
+        "export_url": "https://hochu-z-yisti.choiceqr.com/api/export/xlsx",
         "referer": "https://hochu-z-yisti.choiceqr.com/admin/",
         "section_order": [],
         "excluded_sections": [],
@@ -127,8 +133,15 @@ def refresh_pdf_ready_flags():
 def login_and_get_session(venue_key):
     venue = VENUES[venue_key]
 
-    if not venue["identifier"] or not venue["password"]:
-        raise Exception("ENV variables missing")
+    missing_envs = []
+    if not venue["identifier"]:
+        missing_envs.append(venue["identifier_env"])
+    if not venue["password"]:
+        missing_envs.append(venue["password_env"])
+
+    if missing_envs:
+        missing_envs_str = ", ".join(missing_envs)
+        raise Exception(f"Missing required ENV variables: {missing_envs_str}")
 
     session = requests.Session()
 
@@ -652,6 +665,7 @@ def index():
             "name": VENUES[venue_key]["name"],
             "status": status_badge(venue_key),
             "time": time_info(venue_key),
+            "error": STATUS["venues"][venue_key]["error"],
         }
         for venue_key in VENUES
     ]
@@ -730,6 +744,15 @@ def index():
                 color: #777;
             }
 
+            .status-error {
+                font-size: 12px;
+                margin-top: -6px;
+                margin-bottom: 10px;
+                color: #b42318;
+                font-weight: 700;
+                word-break: break-word;
+            }
+
             .link {
                 display: inline-block;
                 margin-top: 16px;
@@ -758,6 +781,9 @@ def index():
             </form>
             <div class="status-line">{{ venue.status }}</div>
             <div class="status-time">{{ venue.time }}</div>
+            {% if venue.error %}
+            <div class="status-error">Деталі помилки: {{ venue.error }}</div>
+            {% endif %}
             {% endfor %}
 
             <div id="excel-countdown" class="countdown">До наступного завантаження Excel: {{ countdown_text }}</div>
