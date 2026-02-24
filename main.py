@@ -662,24 +662,13 @@ def update_menu():
 
 @app.route("/")
 def index():
-    refresh_pdf_ready_flags()
-
     venue_cards = [
         {
             "key": venue_key,
             "name": VENUES[venue_key]["name"],
-            "ready": STATUS["venues"][venue_key]["pdf_ready"],
         }
         for venue_key in VENUES
     ]
-
-    countdown_seconds = STATUS.get("countdown", 0)
-    if countdown_seconds and countdown_seconds > 0:
-        hours, remainder = divmod(countdown_seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        countdown_text = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-    else:
-        countdown_text = "оновлення виконується"
 
     return render_template_string("""
     <html>
@@ -689,7 +678,7 @@ def index():
             body {
                 margin: 0;
                 padding: 36px 18px;
-                background: linear-gradient(160deg, #f7f7f7 0%, #eceef3 100%);
+                background: radial-gradient(circle at top, #f9fafb 0%, #eef2ff 45%, #e2e8f0 100%);
                 font-family: Arial, sans-serif;
                 color: #171717;
             }
@@ -700,10 +689,10 @@ def index():
             }
 
             .hero {
-                background: #fff;
-                border: 1px solid #d4d4d4;
-                border-radius: 16px;
-                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+                background: linear-gradient(145deg, #ffffff, #f8fafc);
+                border: 1px solid #dbe2ea;
+                border-radius: 18px;
+                box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
                 padding: 28px 24px;
                 text-align: center;
                 margin-bottom: 20px;
@@ -736,11 +725,12 @@ def index():
             }
 
             .venue-card {
-                background: #fff;
-                border: 1px solid #d5d7dd;
+                background: #ffffffd1;
+                backdrop-filter: blur(2px);
+                border: 1px solid #d9e0ea;
                 border-radius: 14px;
                 padding: 14px;
-                box-shadow: 0 5px 14px rgba(0, 0, 0, 0.05);
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
             }
 
             .venue-title {
@@ -750,7 +740,7 @@ def index():
 
             .download-btn {
                 border: none;
-                background: #111;
+                background: linear-gradient(145deg, #111827, #1f2937);
                 color: #fff;
                 font-size: 14px;
                 border-radius: 10px;
@@ -761,22 +751,67 @@ def index():
             }
 
             .download-btn:hover {
-                background: #2d2d2d;
+                background: linear-gradient(145deg, #1f2937, #374151);
             }
 
-            .ready-badge {
+            .download-btn:disabled {
+                opacity: 0.7;
+                cursor: wait;
+            }
+
+            .status-row {
+                margin-top: 10px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .status-light {
+                width: 12px;
+                height: 12px;
+                border-radius: 999px;
+                border: 1px solid #a8a8a8;
+                background: #9ca3af;
+                box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.17);
+            }
+
+            .status-ok {
+                background: #16a34a;
+                box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+                border-color: #15803d;
+            }
+
+            .status-busy {
+                background: #f59e0b;
+                box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+                border-color: #b45309;
+            }
+
+            .status-error {
+                background: #dc2626;
+                box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2);
+                border-color: #b91c1c;
+            }
+
+            .status-label {
+                font-size: 12px;
+                font-weight: 700;
+                color: #334155;
+            }
+
+            .ready-badge,
+            .pending-badge,
+            .error-badge {
                 margin-top: 10px;
                 font-size: 12px;
                 font-weight: 700;
-                color: #0a6e35;
             }
 
-            .pending-badge {
-                margin-top: 10px;
-                font-size: 12px;
-                color: #8a6c00;
-                font-weight: 700;
-            }
+            .ready-badge { color: #0a6e35; }
+
+            .pending-badge { color: #8a6c00; }
+
+            .error-badge { color: #b91c1c; }
 
             .guide {
                 background: #fff;
@@ -814,21 +849,19 @@ def index():
                 <h1>ChoiceQR Menu Export</h1>
                 <div class="subtitle">Офіційні PDF меню закладів</div>
                 <p class="intro">Кожен заклад винесений в окрему картку для швидкого завантаження потрібного меню.</p>
-                <div id="excel-countdown" class="countdown">До наступного завантаження Excel: {{ countdown_text }}</div>
+                <div id="excel-countdown" class="countdown">До наступного завантаження Excel: оновлення виконується</div>
             </section>
 
             <section class="venues-grid">
                 {% for venue in venue_cards %}
-                <article class="venue-card">
+                <article class="venue-card" data-venue="{{ venue.key }}">
                     <h3 class="venue-title">{{ venue.name }}</h3>
-                    <form action="/download/{{ venue.key }}" method="get">
-                        <button type="submit" class="download-btn">Завантажити PDF меню</button>
-                    </form>
-                    {% if venue.ready %}
-                    <div class="ready-badge">PDF готовий до завантаження</div>
-                    {% else %}
-                    <div class="pending-badge">Меню оновлюється, спробуйте трохи пізніше</div>
-                    {% endif %}
+                    <button type="button" class="download-btn" data-download="{{ venue.key }}">Завантажити PDF меню</button>
+                    <div class="status-row">
+                        <span class="status-light" data-light="{{ venue.key }}"></span>
+                        <span class="status-label" data-label="{{ venue.key }}">Перевіряємо статус...</span>
+                    </div>
+                    <div class="pending-badge" data-message="{{ venue.key }}">Оновлення статусу...</div>
                 </article>
                 {% endfor %}
             </section>
@@ -845,6 +878,8 @@ def index():
         </div>
 
         <script>
+            let countdownSeconds = 0;
+
             function formatCountdown(seconds) {
                 if (!seconds || seconds <= 0) {
                     return "оновлення виконується";
@@ -856,32 +891,120 @@ def index():
                 return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
             }
 
-            async function refreshCountdown() {
+            function updateCountdownText() {
+                const node = document.getElementById("excel-countdown");
+                if (!node) {
+                    return;
+                }
+
+                node.textContent = `До наступного завантаження Excel: ${formatCountdown(countdownSeconds)}`;
+            }
+
+            function applyVenueStatus(venueKey, venueStatus, override = null) {
+                const light = document.querySelector(`[data-light='${venueKey}']`);
+                const label = document.querySelector(`[data-label='${venueKey}']`);
+                const message = document.querySelector(`[data-message='${venueKey}']`);
+                if (!light || !label || !message) {
+                    return;
+                }
+
+                light.className = "status-light";
+
+                if (override === "downloading") {
+                    light.classList.add("status-busy");
+                    label.textContent = "Йде завантаження файлу";
+                    message.className = "pending-badge";
+                    message.textContent = "Завантаження PDF...";
+                    return;
+                }
+
+                if (venueStatus.error) {
+                    light.classList.add("status-error");
+                    label.textContent = "Помилка";
+                    message.className = "error-badge";
+                    message.textContent = venueStatus.error;
+                    return;
+                }
+
+                if (venueStatus.pdf_ready) {
+                    light.classList.add("status-ok");
+                    label.textContent = "Все добре";
+                    message.className = "ready-badge";
+                    message.textContent = "PDF готовий до завантаження";
+                    return;
+                }
+
+                light.classList.add("status-busy");
+                label.textContent = "Оновлення";
+                message.className = "pending-badge";
+                message.textContent = "Меню оновлюється, спробуйте трохи пізніше";
+            }
+
+            async function refreshStatus() {
                 try {
-                    const response = await fetch("/status");
-                    if (!response.ok) {
-                        return;
-                    }
+                    const response = await fetch("/status", { cache: "no-store" });
+                    if (!response.ok) return;
 
                     const payload = await response.json();
-                    const node = document.getElementById("excel-countdown");
-                    if (!node) {
-                        return;
-                    }
+                    countdownSeconds = Number(payload.countdown_seconds || 0);
+                    updateCountdownText();
 
-                    const text = formatCountdown(payload.countdown_seconds);
-                    node.textContent = `До наступного завантаження Excel: ${text}`;
+                    Object.entries(payload.venues || {}).forEach(([venueKey, venueStatus]) => {
+                        applyVenueStatus(venueKey, venueStatus);
+                    });
                 } catch (e) {
                     // ignore temporary network errors
                 }
             }
 
-            setInterval(refreshCountdown, 1000);
-            refreshCountdown();
+            async function handleDownload(event) {
+                const button = event.currentTarget;
+                const venueKey = button.getAttribute("data-download");
+
+                button.disabled = true;
+                applyVenueStatus(venueKey, {}, "downloading");
+
+                try {
+                    const response = await fetch(`/download/${venueKey}`);
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(errorText || "download failed");
+                    }
+
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const anchor = document.createElement("a");
+                    anchor.href = url;
+                    anchor.download = `menu-${venueKey}.pdf`;
+                    document.body.appendChild(anchor);
+                    anchor.click();
+                    anchor.remove();
+                    URL.revokeObjectURL(url);
+                } catch (e) {
+                    applyVenueStatus(venueKey, { error: `Не вдалося завантажити PDF: ${e.message}` });
+                } finally {
+                    button.disabled = false;
+                    refreshStatus();
+                }
+            }
+
+            document.querySelectorAll("[data-download]").forEach((button) => {
+                button.addEventListener("click", handleDownload);
+            });
+
+            setInterval(() => {
+                if (countdownSeconds > 0) {
+                    countdownSeconds -= 1;
+                }
+                updateCountdownText();
+            }, 1000);
+
+            setInterval(refreshStatus, 10000);
+            refreshStatus();
         </script>
     </body>
     </html>
-    """, venue_cards=venue_cards, countdown_text=countdown_text)
+    """, venue_cards=venue_cards)
 
 
 @app.route("/download/<venue_key>")
